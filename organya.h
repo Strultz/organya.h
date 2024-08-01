@@ -68,8 +68,8 @@ When you're done:
         Default is 48000hz.
 6. `void organya_context_set_volume(organya_context *, double)` - Set the output volume.
         Volume should be 0-1.
-7. `void organya_context_set_resample_mode(organya_context *, org_resample_mode)` - Set the resampling mode.
-        Default is ORG_RESAMPLE_MODE_LINEAR. See `org_resample_mode`.
+7. `void organya_context_set_resample_mode(organya_context *, organya_resample_mode)` - Set the resampling mode.
+        Default is ORG_RESAMPLE_MODE_LINEAR. See `organya_resample_mode`.
 8. `int organya_context_load_song_file(organya_context *, const char *)` - Load an .org file and read it.
 9. `int organya_context_read_song(organya_context *, uint8 *)` - Read song data.
 s       ong_data should be the contents of an .org file.
@@ -278,7 +278,7 @@ typedef enum {
     ORG_RESAMPLE_MODE_NEAREST = 0,  /* High speed, low quality */
     ORG_RESAMPLE_MODE_LINEAR,       /* Default. Medium speed, medium quality */
     ORG_RESAMPLE_MODE_LANCZOS       /* Low speed, high quality */
-} org_resample_mode;
+} organya_resample_mode;
 
 struct organya_context_s;
 typedef struct organya_context_s organya_context;
@@ -331,9 +331,9 @@ ORG_API void organya_context_set_volume(organya_context *context, double volume)
  *
  * @param mode Resampling mode to use
  *
- * @see org_resample_mode
+ * @see organya_resample_mode
  */
-ORG_API void organya_context_set_resample_mode(organya_context *context, org_resample_mode mode);
+ORG_API void organya_context_set_resample_mode(organya_context *context, organya_resample_mode mode);
 
 /**
  * Loads and reads Organya data from a file.
@@ -519,7 +519,7 @@ struct organya_context_s {
     org_bool play;                                                  /* True if song is currently playing */
     org_int32 volume;                                               /* Playback volume */
     org_uint32 sampling_rate;                                       /* Sampling rate, affects speed */
-    org_resample_mode resample_mode;                                /* Active resampling mode */
+    organya_resample_mode resample_mode;                            /* Active resampling mode */
 
     organya_melody melody_index[MELODY_TRACK_COUNT];                /* Melody track info */
     organya_percussion percussion_index[PERCUSSION_TRACK_COUNT];    /* Percussion track info */
@@ -1135,7 +1135,7 @@ ORG_API void organya_context_set_volume(organya_context *context, double volume)
     context->volume = (org_int32)(volume * 0x10000);
 }
 
-ORG_API void organya_context_set_resample_mode(organya_context *context, org_resample_mode resample_mode) {
+ORG_API void organya_context_set_resample_mode(organya_context *context, organya_resample_mode resample_mode) {
     if (context == NULL) {
         return; /* Invalid */
     }

@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
     
     /* Set properties */
     organya_context_set_sampling_rate(ctx, sample_rate);
-    organya_context_set_resample_mode(ctx, (org_resample_mode)resample_mode);
+    organya_context_set_resample_mode(ctx, (organya_resample_mode)resample_mode);
     
     /* Get song */
     song = organya_context_get_song(ctx);

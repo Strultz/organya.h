@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
     
     /* Set properties */
     organya_context_set_sampling_rate(ctx, device.sampleRate);
-    organya_context_set_resample_mode(ctx, (org_resample_mode)resample_mode);
+    organya_context_set_resample_mode(ctx, (organya_resample_mode)resample_mode);
     
     /* Load .org file */
     printf("Loading file %s\n", argv[1]);
