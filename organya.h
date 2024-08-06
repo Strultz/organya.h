@@ -196,26 +196,26 @@ typedef org_uint8 org_bool;
     #endif
 #endif
 
-#define WAVETABLE_COUNT          100                /* Total number of sounds for melody channels */
-#define PERCUSSION_COUNT          43                /* Total number of sounds for percussion channels */
+#define ORG_WAVETABLE_COUNT      100                /* Total number of sounds for melody channels */
+#define ORG_PERCUSSION_COUNT      43                /* Total number of sounds for percussion channels */
 
-#define MELODY_TRACK_COUNT         8                /* Number of melody tracks */
-#define PERCUSSION_TRACK_COUNT     8                /* Number of percussion tracks */
+#define ORG_MELODY_TRACK_COUNT     8                /* Number of melody tracks */
+#define ORG_PERCUSSION_TRACK_COUNT 8                /* Number of percussion tracks */
 
-#define TRACK_COUNT (MELODY_TRACK_COUNT + PERCUSSION_TRACK_COUNT)
+#define ORG_TRACK_COUNT (ORG_MELODY_TRACK_COUNT + ORG_PERCUSSION_TRACK_COUNT)
 
-#define PROPERTY_NOT_USED       0xFF                /* Value for event properties that aren't used */
-#define DEFAULT_VOLUME           200                /* Default volume of notes */
-#define DEFAULT_PAN                6                /* Default pan of notes */
+#define ORG_PROPERTY_NOT_USED   0xFF                /* Value for event properties that aren't used */
+#define ORG_DEFAULT_VOLUME       200                /* Default volume of notes */
+#define ORG_DEFAULT_PAN            6                /* Default pan of notes */
 
 /* --- Song Handling --- */
 
 typedef struct organya_event_s {
     org_int32 position;                             /* X position of the event */
-    org_uint8 pitch;                                /* Pitch of the note (0 to 95 or PROPERTY_NOT_USED if none) */
+    org_uint8 pitch;                                /* Pitch of the note (0 to 95 or ORG_PROPERTY_NOT_USED if none) */
     org_uint8 length;                               /* Length of the note */
-    org_uint8 volume;                               /* Volume of the note (0 to 254 or PROPERTY_NOT_USED if none) */
-    org_uint8 pan;                                  /* Panning of the note (0 to 12 or PROPERTY_NOT_USED if none) */
+    org_uint8 volume;                               /* Volume of the note (0 to 254 or ORG_PROPERTY_NOT_USED if none) */
+    org_uint8 pan;                                  /* Panning of the note (0 to 12 or ORG_PROPERTY_NOT_USED if none) */
 } organya_event;
 
 typedef struct organya_track_s {
@@ -232,7 +232,7 @@ typedef struct organya_song_s {
     org_uint8 steps;                                /* Number of steps per beat. Does not affect playback */
     org_int32 repeat_start;                         /* Repeat range start position */
     org_int32 repeat_end;                           /* Repeat range end position */
-    organya_track tracks[TRACK_COUNT];              /* Track array */
+    organya_track tracks[ORG_TRACK_COUNT];              /* Track array */
 } organya_song;
 
 /**
@@ -483,7 +483,7 @@ ORG_PRIVATE void organya_sound_generate_sample(organya_sound *sound, org_int32 *
 /* --- Context Handling --- */
 
 typedef struct organya_melody_s {
-    org_uint8 pitch;                /* Current pitch (or PROPERTY_NOT_USED if nothing is playing) */
+    org_uint8 pitch;                /* Current pitch (or ORG_PROPERTY_NOT_USED if nothing is playing) */
     org_uint8 volume;               /* Current volume */
     org_uint8 pan;                  /* Current pan */
 
@@ -496,7 +496,7 @@ typedef struct organya_melody_s {
 } organya_melody;
 
 typedef struct organya_percussion_s {
-    org_uint8 pitch;                /* Current pitch (or PROPERTY_NOT_USED if nothing is playing) */
+    org_uint8 pitch;                /* Current pitch (or ORG_PROPERTY_NOT_USED if nothing is playing) */
     org_uint8 volume;               /* Current volume */
     org_uint8 pan;                  /* Current pan */
 
@@ -516,8 +516,8 @@ struct organya_context_s {
     org_uint32 sampling_rate;                                       /* Sampling rate, affects speed */
     organya_resample_mode resample_mode;                            /* Active resampling mode */
 
-    organya_melody melody_index[MELODY_TRACK_COUNT];                /* Melody track info */
-    organya_percussion percussion_index[PERCUSSION_TRACK_COUNT];    /* Percussion track info */
+    organya_melody melody_index[ORG_MELODY_TRACK_COUNT];                /* Melody track info */
+    organya_percussion percussion_index[ORG_PERCUSSION_TRACK_COUNT];    /* Percussion track info */
 };
 
 /* --- Waveform Data --- */
@@ -600,7 +600,7 @@ ORG_API organya_song *organya_song_create(void) {
     }
 
     /* song_clean tries to free event_list, so make sure it's NULL */
-    for (i = 0; i < TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_TRACK_COUNT; ++i) {
         song->tracks[i].event_list = NULL;
     }
 
@@ -625,7 +625,7 @@ ORG_API void organya_song_clean(organya_song *song) {
     song->repeat_end = 100 * (song->beats * song->steps);
 
     /* Reset melody tracks */
-    for (i = 0; i < MELODY_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_MELODY_TRACK_COUNT; ++i) {
         song->tracks[i].instrument = (org_uint8)(i * 11);
         song->tracks[i].frequency = 1000;
         song->tracks[i].pizzicato = ORG_FALSE;
@@ -638,7 +638,7 @@ ORG_API void organya_song_clean(organya_song *song) {
     }
 
     /* Reset percussion tracks */
-    for (i = MELODY_TRACK_COUNT; i < TRACK_COUNT; ++i) {
+    for (i = ORG_MELODY_TRACK_COUNT; i < ORG_TRACK_COUNT; ++i) {
         song->tracks[i].instrument = 0; /* xxx */
         song->tracks[i].frequency = 1000;
         song->tracks[i].pizzicato = ORG_FALSE;
@@ -652,12 +652,12 @@ ORG_API void organya_song_clean(organya_song *song) {
 
     /* Default percussion instruments
      * This could be improved. */
-    song->tracks[MELODY_TRACK_COUNT + 0].instrument = 0;
-    song->tracks[MELODY_TRACK_COUNT + 1].instrument = 2;
-    song->tracks[MELODY_TRACK_COUNT + 2].instrument = 5;
-    song->tracks[MELODY_TRACK_COUNT + 3].instrument = 6;
-    song->tracks[MELODY_TRACK_COUNT + 4].instrument = 4;
-    song->tracks[MELODY_TRACK_COUNT + 5].instrument = 8;
+    song->tracks[ORG_MELODY_TRACK_COUNT + 0].instrument = 0;
+    song->tracks[ORG_MELODY_TRACK_COUNT + 1].instrument = 2;
+    song->tracks[ORG_MELODY_TRACK_COUNT + 2].instrument = 5;
+    song->tracks[ORG_MELODY_TRACK_COUNT + 3].instrument = 6;
+    song->tracks[ORG_MELODY_TRACK_COUNT + 4].instrument = 4;
+    song->tracks[ORG_MELODY_TRACK_COUNT + 5].instrument = 8;
 }
 
 ORG_API void organya_song_destroy(organya_song *song) {
@@ -668,7 +668,7 @@ ORG_API void organya_song_destroy(organya_song *song) {
     }
 
     /* Free tracks */
-    for (i = 0; i < TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_TRACK_COUNT; ++i) {
         if (song->tracks[i].event_list != NULL) {
             free(song->tracks[i].event_list);
             song->tracks[i].event_list = NULL;
@@ -718,7 +718,7 @@ ORG_API int organya_song_read(organya_song *song, org_uint8 *song_data) {
     song->repeat_end = ORG_READ_32_LE(p);
 
     /* Read track info */
-    for (i = 0; i < TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_TRACK_COUNT; ++i) {
         /* Read instrument data */
         song->tracks[i].frequency = ORG_READ_16_LE(p);
         song->tracks[i].instrument = ORG_READ_8_LE(p);
@@ -728,8 +728,8 @@ ORG_API int organya_song_read(organya_song *song, org_uint8 *song_data) {
         ++p;
 
         /* Check for invalid instrument */
-        if ((i < MELODY_TRACK_COUNT && song->tracks[i].instrument >= WAVETABLE_COUNT)
-                || (i >= MELODY_TRACK_COUNT && song->tracks[i].instrument >= PERCUSSION_COUNT)) {
+        if ((i < ORG_MELODY_TRACK_COUNT && song->tracks[i].instrument >= ORG_WAVETABLE_COUNT)
+                || (i >= ORG_MELODY_TRACK_COUNT && song->tracks[i].instrument >= ORG_PERCUSSION_COUNT)) {
             song->tracks[i].instrument = 0;
         }
 
@@ -737,7 +737,7 @@ ORG_API int organya_song_read(organya_song *song, org_uint8 *song_data) {
     }
 
     /* Read event data */
-    for (i = 0; i < TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_TRACK_COUNT; ++i) {
         /* No events here */
         if (song->tracks[i].event_count == 0) {
             continue;
@@ -760,8 +760,8 @@ ORG_API int organya_song_read(organya_song *song, org_uint8 *song_data) {
             song->tracks[i].event_list[j].pitch = ORG_READ_8_LE(p);
 
             /* Check for invalid note pitch */
-            if (song->tracks[i].event_list[j].pitch >= (12 * 8) && song->tracks[i].event_list[j].pitch != PROPERTY_NOT_USED) {
-                song->tracks[i].event_list[j].pitch = PROPERTY_NOT_USED;
+            if (song->tracks[i].event_list[j].pitch >= (12 * 8) && song->tracks[i].event_list[j].pitch != ORG_PROPERTY_NOT_USED) {
+                song->tracks[i].event_list[j].pitch = ORG_PROPERTY_NOT_USED;
             }
         }
 
@@ -785,8 +785,8 @@ ORG_API int organya_song_read(organya_song *song, org_uint8 *song_data) {
             song->tracks[i].event_list[j].pan = ORG_READ_8_LE(p);
 
             /* Check for invalid note pan */
-            if (song->tracks[i].event_list[j].pan > 12 && song->tracks[i].event_list[j].pan != PROPERTY_NOT_USED) {
-                song->tracks[i].event_list[j].pan = DEFAULT_PAN;
+            if (song->tracks[i].event_list[j].pan > 12 && song->tracks[i].event_list[j].pan != ORG_PROPERTY_NOT_USED) {
+                song->tracks[i].event_list[j].pan = ORG_DEFAULT_PAN;
             }
         }
     }
@@ -922,7 +922,7 @@ ORG_PRIVATE int organya_context_load_instruments(organya_context *context) {
 
     const org_uint8 *percussion_data;
 
-    for (i = 0; i < MELODY_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_MELODY_TRACK_COUNT; ++i) {
         for (j = 0; j < 8; ++j) {
             sample_count = ORG_OCTAVE_TABLE[j].wave_size;
 
@@ -959,8 +959,8 @@ ORG_PRIVATE int organya_context_load_instruments(organya_context *context) {
         }
     }
 
-    for (i = 0; i < PERCUSSION_TRACK_COUNT; ++i) {
-        percussion_data = organya_get_percussion_buffer(context->song->tracks[MELODY_TRACK_COUNT + i].instrument);
+    for (i = 0; i < ORG_PERCUSSION_TRACK_COUNT; ++i) {
+        percussion_data = organya_get_percussion_buffer(context->song->tracks[ORG_MELODY_TRACK_COUNT + i].instrument);
 
         if (percussion_data == NULL) {
             continue; /* Error */
@@ -1018,10 +1018,10 @@ ORG_API organya_context *organya_context_create(void) {
     context->resample_mode = ORG_RESAMPLE_MODE_LINEAR;
 
     /* Initialize melody track status */
-    for (i = 0; i < MELODY_TRACK_COUNT; ++i) {
-        context->melody_index[i].pitch = PROPERTY_NOT_USED;
-        context->melody_index[i].volume = DEFAULT_VOLUME;
-        context->melody_index[i].pan = DEFAULT_PAN;
+    for (i = 0; i < ORG_MELODY_TRACK_COUNT; ++i) {
+        context->melody_index[i].pitch = ORG_PROPERTY_NOT_USED;
+        context->melody_index[i].volume = ORG_DEFAULT_VOLUME;
+        context->melody_index[i].pan = ORG_DEFAULT_PAN;
 
         context->melody_index[i].index = 0;
         context->melody_index[i].ticks = 0;
@@ -1035,10 +1035,10 @@ ORG_API organya_context *organya_context_create(void) {
     }
 
     /* Initialize percussion track status */
-    for (i = 0; i < PERCUSSION_TRACK_COUNT; ++i) {
-        context->percussion_index[i].pitch = PROPERTY_NOT_USED;
-        context->percussion_index[i].volume = DEFAULT_VOLUME;
-        context->percussion_index[i].pan = DEFAULT_PAN;
+    for (i = 0; i < ORG_PERCUSSION_TRACK_COUNT; ++i) {
+        context->percussion_index[i].pitch = ORG_PROPERTY_NOT_USED;
+        context->percussion_index[i].volume = ORG_DEFAULT_VOLUME;
+        context->percussion_index[i].pan = ORG_DEFAULT_PAN;
 
         context->percussion_index[i].index = 0;
         context->percussion_index[i].muted = ORG_FALSE;
@@ -1099,7 +1099,7 @@ ORG_API void organya_context_set_sampling_rate(organya_context *context, org_uin
     context->sampling_rate = sampling_rate;
 
     /* Update all melody sounds frequency */
-    for (i = 0; i < MELODY_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_MELODY_TRACK_COUNT; ++i) {
         for (j = 0; j < 8; ++j) {
             for (k = 0; k < 2; ++k) {
                 if (context->melody_index[i].sounds[j][k] != NULL) {
@@ -1110,7 +1110,7 @@ ORG_API void organya_context_set_sampling_rate(organya_context *context, org_uin
     }
 
     /* Update all percussion sounds frequency */
-    for (i = 0; i < PERCUSSION_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_PERCUSSION_TRACK_COUNT; ++i) {
         if (context->percussion_index[i].sound != NULL) {
             organya_sound_set_frequency(context->percussion_index[i].sound, context->percussion_index[i].sound->frequency);
         }
@@ -1195,7 +1195,7 @@ ORG_API void organya_context_unload_song(organya_context *context) {
     organya_context_stop(context);
 
     /* Destroy all melody sounds */
-    for (i = 0; i < MELODY_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_MELODY_TRACK_COUNT; ++i) {
         for (j = 0; j < 8; ++j) {
             for (k = 0; k < 2; ++k) {
                 if (context->melody_index[i].sounds[j][k] != NULL) {
@@ -1207,7 +1207,7 @@ ORG_API void organya_context_unload_song(organya_context *context) {
     }
 
     /* Destroy all percussion sounds */
-    for (i = 0; i < PERCUSSION_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_PERCUSSION_TRACK_COUNT; ++i) {
         if (context->percussion_index[i].sound != NULL) {
             organya_sound_destroy(context->percussion_index[i].sound);
             context->percussion_index[i].sound = NULL;
@@ -1230,7 +1230,7 @@ ORG_API void organya_context_seek(organya_context *context, org_int32 position) 
     context->position = position;
 
     /* Get melody indexes */
-    for (i = 0; i < MELODY_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_MELODY_TRACK_COUNT; ++i) {
         context->melody_index[i].index = 0;
 
         for (j = 0; j < context->song->tracks[i].event_count; ++j) {
@@ -1244,11 +1244,11 @@ ORG_API void organya_context_seek(organya_context *context, org_int32 position) 
     }
 
     /* Get percussion indexes */
-    for (i = 0; i < PERCUSSION_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_PERCUSSION_TRACK_COUNT; ++i) {
         context->percussion_index[i].index = 0;
 
-        for (j = 0; j < context->song->tracks[MELODY_TRACK_COUNT + i].event_count; ++j) {
-            event = &context->song->tracks[MELODY_TRACK_COUNT + i].event_list[j];
+        for (j = 0; j < context->song->tracks[ORG_MELODY_TRACK_COUNT + i].event_count; ++j) {
+            event = &context->song->tracks[ORG_MELODY_TRACK_COUNT + i].event_list[j];
 
             if (event != NULL && context->position <= event->position) {
                 context->percussion_index[i].index = j;
@@ -1287,7 +1287,7 @@ ORG_API void organya_context_stop(organya_context *context) {
     context->play = ORG_FALSE;
 
     /* Stop melody sounds */
-    for (i = 0; i < MELODY_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_MELODY_TRACK_COUNT; ++i) {
         for (j = 0; j < 8; ++j) {
             organya_sound_stop(context->melody_index[i].sounds[j][0]);
             organya_sound_stop(context->melody_index[i].sounds[j][1]);
@@ -1295,7 +1295,7 @@ ORG_API void organya_context_stop(organya_context *context) {
     }
 
     /* Stop percussion sounds */
-    for (i = 0; i < PERCUSSION_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_PERCUSSION_TRACK_COUNT; ++i) {
         organya_sound_stop(context->percussion_index[i].sound);
     }
 }
@@ -1305,15 +1305,15 @@ ORG_API void organya_context_set_mute(organya_context *context, size_t track, or
         return; /* Invalid */
     }
 
-    if (track >= TRACK_COUNT) {
+    if (track >= ORG_TRACK_COUNT) {
         return; /* Invalid */
     }
 
     /* Set muted */
-    if (track < MELODY_TRACK_COUNT) {
+    if (track < ORG_MELODY_TRACK_COUNT) {
         context->melody_index[track].muted = mute;
     } else {
-        context->percussion_index[track - MELODY_TRACK_COUNT].muted = mute;
+        context->percussion_index[track - ORG_MELODY_TRACK_COUNT].muted = mute;
     }
 }
 
@@ -1330,15 +1330,15 @@ ORG_API void organya_context_tick(organya_context *context) {
     }
 
     /* Tick melody tracks */
-    for (i = 0; i < MELODY_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_MELODY_TRACK_COUNT; ++i) {
         /* Validity check */
         if (context->melody_index[i].index < context->song->tracks[i].event_count && !context->melody_index[i].muted) {
             event = &context->song->tracks[i].event_list[context->melody_index[i].index];
 
             if (event != NULL && context->position == event->position) {
-                if (event->pitch != PROPERTY_NOT_USED) {
+                if (event->pitch != ORG_PROPERTY_NOT_USED) {
                     /* Stop old sound */
-                    if (context->melody_index[i].pitch != PROPERTY_NOT_USED && !context->song->tracks[i].pizzicato) {
+                    if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED && !context->song->tracks[i].pizzicato) {
                         organya_sound_play(
                             context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
                             ORG_FALSE
@@ -1371,12 +1371,12 @@ ORG_API void organya_context_tick(organya_context *context) {
                     );
                 }
 
-                if (event->volume != PROPERTY_NOT_USED) {
+                if (event->volume != ORG_PROPERTY_NOT_USED) {
                     /* Update track status */
                     context->melody_index[i].volume = event->volume;
                 }
 
-                if (event->pan != PROPERTY_NOT_USED) {
+                if (event->pan != ORG_PROPERTY_NOT_USED) {
                     /* Update track status */
                     context->melody_index[i].pan = event->pan;
                 }
@@ -1387,21 +1387,21 @@ ORG_API void organya_context_tick(organya_context *context) {
 
         /* Tick note length */
         if (context->melody_index[i].ticks == 0) {
-            if (context->melody_index[i].pitch != PROPERTY_NOT_USED && !context->song->tracks[i].pizzicato) {
+            if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED && !context->song->tracks[i].pizzicato) {
                 /* Stop old sound */
                 organya_sound_play(
                     context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
                     ORG_FALSE
                 );
 
-                context->melody_index[i].pitch = PROPERTY_NOT_USED;
+                context->melody_index[i].pitch = ORG_PROPERTY_NOT_USED;
             }
         } else {
             --context->melody_index[i].ticks;
         }
 
         /* Set playing volume */
-        if (context->melody_index[i].pitch != PROPERTY_NOT_USED) {
+        if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED) {
             organya_sound_set_volume(
                 context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
                 ((context->melody_index[i].volume * 100 / 0x7F) - 0xFF) * 8
@@ -1409,7 +1409,7 @@ ORG_API void organya_context_tick(organya_context *context) {
         }
 
         /* Set playing pan */
-        if (context->melody_index[i].pitch != PROPERTY_NOT_USED) {
+        if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED) {
             organya_sound_set_pan(
                 context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
                 (ORG_PAN_TABLE[context->melody_index[i].pan] - 0x100) * 10
@@ -1418,13 +1418,13 @@ ORG_API void organya_context_tick(organya_context *context) {
     }
 
     /* Tick percussion tracks */
-    for (i = 0; i < PERCUSSION_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_PERCUSSION_TRACK_COUNT; ++i) {
         /* Validity check */
-        if (context->percussion_index[i].index < context->song->tracks[MELODY_TRACK_COUNT + i].event_count && !context->percussion_index[i].muted) {
-            event = &context->song->tracks[MELODY_TRACK_COUNT + i].event_list[context->percussion_index[i].index];
+        if (context->percussion_index[i].index < context->song->tracks[ORG_MELODY_TRACK_COUNT + i].event_count && !context->percussion_index[i].muted) {
+            event = &context->song->tracks[ORG_MELODY_TRACK_COUNT + i].event_list[context->percussion_index[i].index];
 
             if (event != NULL && context->position == event->position) {
-                if (event->pitch != PROPERTY_NOT_USED) {
+                if (event->pitch != ORG_PROPERTY_NOT_USED) {
                     /* Stop old sound */
                     organya_sound_stop(context->percussion_index[i].sound);
 
@@ -1441,12 +1441,12 @@ ORG_API void organya_context_tick(organya_context *context) {
                     organya_sound_play(context->percussion_index[i].sound, ORG_FALSE);
                 }
 
-                if (event->volume != PROPERTY_NOT_USED) {
+                if (event->volume != ORG_PROPERTY_NOT_USED) {
                     /* Update track status */
                     context->percussion_index[i].volume = event->volume;
                 }
 
-                if (event->pan != PROPERTY_NOT_USED) {
+                if (event->pan != ORG_PROPERTY_NOT_USED) {
                     /* Update track status */
                     context->percussion_index[i].pan = event->pan;
                 }
@@ -1500,7 +1500,7 @@ ORG_API org_uint32 organya_context_generate_sample(organya_context *context) {
     --context->samples_to_next_tick;
 
     /* Generate melody samples */
-    for (i = 0; i < MELODY_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_MELODY_TRACK_COUNT; ++i) {
         for (j = 0; j < 8; ++j) {
             organya_sound_generate_sample(context->melody_index[i].sounds[j][0], buffer);
             organya_sound_generate_sample(context->melody_index[i].sounds[j][1], buffer);
@@ -1508,7 +1508,7 @@ ORG_API org_uint32 organya_context_generate_sample(organya_context *context) {
     }
 
     /* Generate percussion samples */
-    for (i = 0; i < PERCUSSION_TRACK_COUNT; ++i) {
+    for (i = 0; i < ORG_PERCUSSION_TRACK_COUNT; ++i) {
         organya_sound_generate_sample(context->percussion_index[i].sound, buffer);
     }
 
