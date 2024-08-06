@@ -232,7 +232,7 @@ typedef struct organya_song_s {
     org_uint8 steps;                                /* Number of steps per beat. Does not affect playback */
     org_int32 repeat_start;                         /* Repeat range start position */
     org_int32 repeat_end;                           /* Repeat range end position */
-    organya_track tracks[ORG_TRACK_COUNT];              /* Track array */
+    organya_track tracks[ORG_TRACK_COUNT];          /* Track array */
 } organya_song;
 
 /**
@@ -507,14 +507,14 @@ typedef struct organya_percussion_s {
 } organya_percussion;
 
 struct organya_context_s {
-    organya_song *song;                                             /* Currently loaded song */
-    org_int32 position;                                             /* Current player position */
-    double samples_to_next_tick;                                    /* Number of samples until next tick */
+    organya_song *song;                                                 /* Currently loaded song */
+    org_int32 position;                                                 /* Current player position */
+    double samples_to_next_tick;                                        /* Number of samples until next tick */
 
-    org_bool play;                                                  /* True if song is currently playing */
-    org_int32 volume;                                               /* Playback volume */
-    org_uint32 sampling_rate;                                       /* Sampling rate, affects speed */
-    organya_resample_mode resample_mode;                            /* Active resampling mode */
+    org_bool play;                                                      /* True if song is currently playing */
+    org_int32 volume;                                                   /* Playback volume */
+    org_uint32 sampling_rate;                                           /* Sampling rate, affects speed */
+    organya_resample_mode resample_mode;                                /* Active resampling mode */
 
     organya_melody melody_index[ORG_MELODY_TRACK_COUNT];                /* Melody track info */
     organya_percussion percussion_index[ORG_PERCUSSION_TRACK_COUNT];    /* Percussion track info */
