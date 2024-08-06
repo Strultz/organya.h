@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
     /* Load .org file */
     printf("Loading file %s\n", argv[1]);
     
-    if (organya_context_load_song_file(ctx, argv[1]) < 0) {
+    if (organya_context_load_song_file(ctx, argv[1])) {
         puts("Error!");
         ma_device_uninit(&device);
         organya_context_destroy(ctx);
@@ -107,5 +107,5 @@ int main(int argc, char *argv[]) {
     organya_context_destroy(ctx);
     
     /* Done */
-    return 0;
+    return EXIT_SUCCESS;
 }

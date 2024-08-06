@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
     /* Load .org file */
     printf("Loading file %s\n", argv[1]);
     
-    if (organya_context_load_song_file(ctx, argv[1]) < 0) {
+    if (organya_context_load_song_file(ctx, argv[1])) {
         puts("Error!");
         organya_context_destroy(ctx);
         return EXIT_FAILURE; /* Failed */
@@ -190,5 +190,5 @@ int main(int argc, char *argv[]) {
     /* Done */
     puts("File saved");
     
-    return 0;
+    return EXIT_SUCCESS;
 }
