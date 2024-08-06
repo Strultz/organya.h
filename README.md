@@ -25,7 +25,7 @@ Create a context:
 
 Load a file:
 
-    if (organya_context_load_song_file(ctx, "path/to/file.org") < 0) {
+    if (organya_context_load_song_file(ctx, "path/to/file.org")) {
         Error
     }
 
