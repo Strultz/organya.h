@@ -72,7 +72,7 @@ When you're done:
         Default is ORG_RESAMPLE_MODE_LINEAR. See `organya_resample_mode`.
 8. `int organya_context_load_song_file(organya_context *, const char *)` - Load an .org file and read it.
 9. `int organya_context_read_song(organya_context *, uint8 *)` - Read song data.
-        ong_data should be the contents of an .org file.
+        song_data should be the contents of an .org file.
 10. `void organya_context_unload_song(organya_context *)` - Unload currently loaded song.
 11. `void organya_context_seek(organya_context *, int32)` - Set current song position.
 12. `void organya_context_play(organya_context *, int32)` - Start playing.
