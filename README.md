@@ -4,7 +4,8 @@
 
 organya.h is a simple C89 library for reading and decoding Organya music (.org files).
 
-Organya is a sequenced music format created in 1999 by [Studio Pixel](https://studiopixel.jp/) and used in games such as
+Organya is a sequenced music format created in 1999 by [Studio Pixel](https://studiopixel.jp/).
+It is the predecessor to PxTone and was and used in games such as
 [Cave Story](https://www.cavestory.org/game-info/about-cave-story.php),
 [Azarashi (2001 version)](https://www.cavestory.org/pixels-works/azarashi.php),
 [STARGAZER](http://www5b.biglobe.ne.jp/~kiss-me/aji/star/), and more.
@@ -57,8 +58,9 @@ int main()
     // output_buffer should be at least num_samples * sizeof(float) * 2 long.
     organya_context_generate_samples(&ctx, output_buffer, num_samples);
 
-    // When you're done, deinitialize and free everything.
+    // When you're done, deinitialize and free everything:
     organya_context_deinit(&ctx);
+
     return 0;
 }
 ```
