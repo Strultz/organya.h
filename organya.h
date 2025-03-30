@@ -310,7 +310,6 @@ typedef struct organya_context_s
  * Initializes an Organya context.
  *
  * @param context Pointer to context structure
- * @param soundbank_path Path to .wdb file to load. This can be reloaded later
  */
 ORG_API organya_result organya_context_init(organya_context *context);
 
