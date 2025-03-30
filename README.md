@@ -33,7 +33,7 @@ int main()
 
     // Set everything up (these are the default settings):
     organya_context_set_sample_rate(&ctx, 44100);
-    organya_context_set_resample_mode(&ctx, ORG_RESAMPLE_MODE_LAGRANGE);
+    organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
     organya_context_set_volume(&ctx, 1);
 
     // Load a soundbank from a file path:

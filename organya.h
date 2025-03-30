@@ -33,7 +33,7 @@ int main()
 
     // Set everything up (these are the default settings):
     organya_context_set_sample_rate(&ctx, 44100);
-    organya_context_set_resample_mode(&ctx, ORG_RESAMPLE_MODE_LAGRANGE);
+    organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
     organya_context_set_volume(&ctx, 1);
 
     // Load a soundbank from a file path:
@@ -205,13 +205,13 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
 #define ORG_MAX_MARGIN  ORG_MAX(ORG_LANCZOS_WINDOW, 2)
 #define ORG_MAX_TAPS    (ORG_MAX_MARGIN * 2)
 
-typedef enum organya_resample_mode_e
+typedef enum organya_interpolation_e
 {
-    ORG_RESAMPLE_MODE_NEAREST = 0,  /* Fastest speed, lowest quality */
-    ORG_RESAMPLE_MODE_LINEAR,       /* Fast speed, medium quality */
-    ORG_RESAMPLE_MODE_LAGRANGE,     /* Medium speed, high quality. Default. */
-    ORG_RESAMPLE_MODE_LANCZOS       /* Slow speed, highest quality */
-} organya_resample_mode;
+    ORG_INTERPOLATION_NONE = 0,     /* Fastest speed, lowest quality */
+    ORG_INTERPOLATION_LINEAR,       /* Fast speed, medium quality */
+    ORG_INTERPOLATION_LAGRANGE,     /* Medium speed, high quality. Default. */
+    ORG_INTERPOLATION_LANCZOS       /* Slow speed, highest quality */
+} organya_interpolation;
 
 /* Internal sample data */
 typedef struct organya_internal_sound_s
@@ -234,7 +234,7 @@ typedef struct organya_internal_sound_s
 
     org_uint32 out_sample_rate;                                         /* Output sample rate */
     org_uint32 out_volume_ramp;                                         /* Volume ramp speed */
-    organya_resample_mode resample_mode;                                /* Current resampling mode */
+    organya_interpolation interpolation;                                /* Current interpolation mode */
 
     float volume;                                                       /* Sound volume */
     float pan_left;                                                     /* Sound left pan */
@@ -295,7 +295,7 @@ typedef struct organya_context_s
     /* User settings */
     float volume;
     org_uint32 sample_rate;
-    organya_resample_mode resample_mode;
+    organya_interpolation interpolation;
 
     /* For soundbanks: */
     org_uint8 melody_wave_data[ORG_WAVETABLE_COUNT * 0x100];
@@ -353,13 +353,13 @@ ORG_API void organya_context_set_sample_rate(organya_context *context, org_uint3
 ORG_API void organya_context_set_volume(organya_context *context, float volume);
 
 /**
- * Sets the resampling mode. Affects quality of pitch changes.
+ * Sets the interpolation mode. Affects quality of pitch changes.
  *
- * @param mode Resampling mode to use
+ * @param mode Interpolation mode to use
  *
- * @see organya_resample_mode
+ * @see organya_interpolation
  */
-ORG_API void organya_context_set_resample_mode(organya_context *context, organya_resample_mode mode);
+ORG_API void organya_context_set_interpolation(organya_context *context, organya_interpolation mode);
 
 #ifndef ORGANYA_NO_STDIO
 
@@ -872,7 +872,7 @@ ORG_PRIVATE void organya_internal_context_set_sound_settings(organya_context *co
             {
                 context->melody_index[i].sounds[j][k].out_sample_rate = context->sample_rate;
                 context->melody_index[i].sounds[j][k].out_volume_ramp = context->volume_ramp;
-                context->melody_index[i].sounds[j][k].resample_mode = context->resample_mode;
+                context->melody_index[i].sounds[j][k].interpolation = context->interpolation;
 
                 organya_internal_sound_set_frequency(&context->melody_index[i].sounds[j][k], context->melody_index[i].sounds[j][k].frequency);
             }
@@ -884,7 +884,7 @@ ORG_PRIVATE void organya_internal_context_set_sound_settings(organya_context *co
     {
         context->percussion_index[i].sound.out_sample_rate = context->sample_rate;
         context->percussion_index[i].sound.out_volume_ramp = context->volume_ramp;
-        context->percussion_index[i].sound.resample_mode = context->resample_mode;
+        context->percussion_index[i].sound.interpolation = context->interpolation;
 
         organya_internal_sound_set_frequency(&context->percussion_index[i].sound, context->percussion_index[i].sound.frequency);
     }
@@ -959,7 +959,7 @@ ORG_API organya_result organya_context_init(organya_context *context)
 
     context->sample_rate = 44100;
     /* Lagrange interpolation is the closest to original Organya playback on Windows Vista and later. */
-    context->resample_mode = ORG_RESAMPLE_MODE_LAGRANGE;
+    context->interpolation = ORG_INTERPOLATION_LAGRANGE;
     context->volume = 1;
 
     /* Should be 4ms */
@@ -1180,7 +1180,7 @@ ORG_API void organya_context_set_volume(organya_context *context, float volume)
     context->volume = volume;
 }
 
-ORG_API void organya_context_set_resample_mode(organya_context *context, organya_resample_mode resample_mode)
+ORG_API void organya_context_set_interpolation(organya_context *context, organya_interpolation interpolation)
 {
     if (context == NULL)
     {
@@ -1188,7 +1188,7 @@ ORG_API void organya_context_set_resample_mode(organya_context *context, organya
     }
 
     /* Set mode */
-    context->resample_mode = resample_mode;
+    context->interpolation = interpolation;
 
     /* Update all sounds data */
     organya_internal_context_set_sound_settings(context);
@@ -1609,7 +1609,7 @@ ORG_PRIVATE organya_result organya_internal_sound_init(organya_internal_sound *s
 
     sound->out_sample_rate = context->sample_rate;
     sound->out_volume_ramp = context->volume_ramp;
-    sound->resample_mode = context->resample_mode;
+    sound->interpolation = context->interpolation;
 
     /* Success */
     return ORG_RESULT_SUCCESS;
@@ -1782,9 +1782,9 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
     #endif
 
         /* Interpolate sample with chosen algorithm */
-        switch (sound->resample_mode)
+        switch (sound->interpolation)
         {
-            case ORG_RESAMPLE_MODE_NEAREST:
+            case ORG_INTERPOLATION_NONE:
             {
                 /* No interpolation */
                 margin = sound->ring;
@@ -1792,7 +1792,7 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
                 sample_mixed = sound->samples[margin];
                 break;
             }
-            case ORG_RESAMPLE_MODE_LINEAR:
+            case ORG_INTERPOLATION_LINEAR:
             {
                 /* Linear interpolation */
                 float sample_a;
@@ -1806,7 +1806,7 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
                 sample_mixed = sample_a + (sample_b - sample_a) * sound->sub_position;
                 break;
             }
-            case ORG_RESAMPLE_MODE_LAGRANGE:
+            case ORG_INTERPOLATION_LAGRANGE:
             {
                 /* Lagrange interpolation */
                 float sample_a, sample_b, sample_c, sample_d;
@@ -1827,7 +1827,7 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
                 sample_mixed = ((c3 * sound->sub_position + c2) * sound->sub_position + c1) * sound->sub_position + c0;
                 break;
             }
-            case ORG_RESAMPLE_MODE_LANCZOS:
+            case ORG_INTERPOLATION_LANCZOS:
             {
                 /* Lanczos interpolation */
                 org_int32 j;
