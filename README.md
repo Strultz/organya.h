@@ -23,42 +23,42 @@ before including the header in one .c file to create the implementation.
 
 int main()
 {
-    // Create the context:
+    /* Create the context: */
     organya_context ctx;
     if (organya_context_init(&ctx) != ORG_RESULT_SUCCESS)
     {
-        // Handle the error here
+        /* Handle the error here */
         return -1;
     }
 
-    // Set everything up (these are the default settings):
+    /* Set everything up (these are the default settings): */
     organya_context_set_sample_rate(&ctx, 44100);
     organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
     organya_context_set_volume(&ctx, 1);
 
-    // Load a soundbank from a file path:
+    /* Load a soundbank from a file path: */
     if (organya_context_load_soundbank_file(&ctx, "path/to/file.wdb") != ORG_RESULT_SUCCESS)
     {
-        // Handle the error here
+        /* Handle the error here */
         organya_context_deinit(&ctx);
         return -1;
     }
-    // Then load a song from a file path:
+    /* Then load a song from a file path: */
     if (organya_context_load_song_file(&ctx, "path/to/file.org") != ORG_RESULT_SUCCESS)
     {
-        // Handle the error here
+        /* Handle the error here */
         organya_context_deinit(&ctx);
         return -1;
     }
-    // Alternatively, you can load both of these directly from some pointer using
-    // organya_context_read_soundbank() and organya_context_read_song().
+    /* Alternatively, you can load both of these directly from some pointer using
+     * organya_context_read_soundbank() and organya_context_read_song(). */
 
-    // Generate samples (which would then be output to an audio player, or a .wav file, or etc.)
-    // This will output interleaved stereo 32-bit floating point PCM to output_buffer.
-    // output_buffer should be at least num_samples * sizeof(float) * 2 long.
+    /* Generate samples (which would then be output to an audio player, or a .wav file, or etc.)
+     * This will output interleaved stereo 32-bit floating point PCM to output_buffer.
+     * output_buffer should be at least num_samples * sizeof(float) * 2 long. */
     organya_context_generate_samples(&ctx, output_buffer, num_samples);
 
-    // When you're done, deinitialize and free everything:
+    /* When you're done, deinitialize and free everything: */
     organya_context_deinit(&ctx);
 
     return 0;
