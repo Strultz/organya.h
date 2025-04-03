@@ -14,6 +14,7 @@ It is the predecessor to [PxTone](https://en.wikipedia.org/wiki/PxTone) and was 
 
 To use this library, just `#include "organya.h"` in your project. Define `ORGANYA_IMPLEMENTATION`
 before including the header in one .c file to create the implementation.
+You should also link with `-lm` on Linux/BSD systems.
 
 ## Example
 
