@@ -163,7 +163,7 @@ typedef struct organya_song_s
  *
  * @param song Pointer to the organya_song structure
  *
- * @returns see organya_result enum for possible return values
+ * @returns Success/failure status; see organya_result enum for possible values
  */
 ORG_API organya_result organya_song_init(organya_song *song);
 
@@ -190,7 +190,7 @@ ORG_API void organya_song_clean(organya_song *song);
  * @param song Pointer to the organya_song structure
  * @param file_path Path of file to load
  *
- * @returns see organya_result enum for possible return values
+ * @returns Success/failure status; see organya_result enum for possible values
  */
 ORG_API organya_result organya_song_load_file(organya_song *song, const char *file_path);
 
@@ -203,7 +203,7 @@ ORG_API organya_result organya_song_load_file(organya_song *song, const char *fi
  * @param song_data Song data bytes - this would be the contents of an org file
  * @param data_length Length of song_data
  *
- * @returns see organya_result enum for possible return values
+ * @returns Success/failure status; see organya_result enum for possible values
  */
 ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *song_data, size_t data_length);
 
@@ -326,7 +326,7 @@ typedef struct organya_context_s
  *
  * @param context Pointer to the organya_context structure
  *
- * @returns see organya_result enum for possible return values
+ * @returns Success/failure status; see organya_result enum for possible values
  */
 ORG_API organya_result organya_context_init(organya_context *context);
 
@@ -345,7 +345,7 @@ ORG_API void organya_context_deinit(organya_context *context);
  * @param context Pointer to the organya_context structure
  * @param file_path Path of .wdb file to load
  *
- * @returns see organya_result enum for possible return values
+ * @returns Success/failure status; see organya_result enum for possible values
  */
 ORG_API organya_result organya_context_load_soundbank_file(organya_context *context, const char *file_path);
 
@@ -358,7 +358,7 @@ ORG_API organya_result organya_context_load_soundbank_file(organya_context *cont
  * @param bank_data Soundbank data bytes - this would be the contents of a wdb file
  * @param data_length Length of bank_data
  *
- * @returns see organya_result enum for possible return values
+ * @returns Success/failure status; see organya_result enum for possible values
  */
 ORG_API organya_result organya_context_read_soundbank(organya_context *context, const org_uint8 *bank_data, size_t data_length);
 
@@ -396,7 +396,7 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
  * @param context Pointer to the organya_context structure
  * @param file_path Path of file to load
  *
- * @returns see organya_result enum for possible return values
+ * @returns Success/failure status; see organya_result enum for possible values
  */
 ORG_API organya_result organya_context_load_song_file(organya_context *context, const char *file_path);
 
@@ -409,7 +409,7 @@ ORG_API organya_result organya_context_load_song_file(organya_context *context, 
  * @param song_data Song data bytes - this would be the contents of an org file
  * @param data_length Length of song_data
  *
- * @returns see organya_result enum for possible return values
+ * @returns Success/failure status; see organya_result enum for possible values
  */
 ORG_API organya_result organya_context_read_song(organya_context *context, const org_uint8 *song_data, size_t data_length);
 
