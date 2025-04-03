@@ -134,18 +134,18 @@ typedef struct organya_event_s
 {
     org_uint32 position;                            /* X position of the event */
     org_uint8 pitch;                                /* Pitch of the note (0 to 95 or ORG_PROPERTY_NOT_USED if none) */
-    org_uint8 length;                               /* Length of the note */
+    org_uint8 length;                               /* Length of the note (should never be 0) */
     org_uint8 volume;                               /* Volume of the note (0 to 254 or ORG_PROPERTY_NOT_USED if none) */
     org_uint8 pan;                                  /* Panning of the note (0 to 12 or ORG_PROPERTY_NOT_USED if none) */
 } organya_event;
 
 typedef struct organya_channel_s
 {
-    org_uint8 instrument;                           /* Channel instrument number */
+    org_uint8 instrument;                           /* Channel instrument index */
     org_uint16 finetune;                            /* Channel finetune, only used for melody channels (default is 1000) */
     org_bool pizzicato;                             /* Notes will not loop, only used for melody channels */
     size_t event_count;
-    organya_event *event_list;                      /* Event list */
+    organya_event *event_list;
 } organya_channel;
 
 typedef struct organya_song_s
@@ -153,23 +153,32 @@ typedef struct organya_song_s
     org_uint16 tempo_ms;                            /* How long one tick takes in milliseconds */
     org_uint8 beats;                                /* Number of beats per bar. Does not affect playback */
     org_uint8 steps;                                /* Number of steps per beat. Does not affect playback */
-    org_uint32 repeat_start;                        /* Repeat range start position */
-    org_uint32 repeat_end;                          /* Repeat range end position */
-    organya_channel channels[ORG_CHANNEL_COUNT];    /* Channel array */
+    org_uint32 repeat_start;                        /* Repeat range start X position */
+    org_uint32 repeat_end;                          /* Repeat range end X position */
+    organya_channel channels[ORG_CHANNEL_COUNT];
 } organya_song;
 
 /**
- * Creates an empty song structure.
+ * Initializes a default song structure.
+ *
+ * @param song Pointer to the organya_song structure
+ *
+ * @returns see organya_result enum for possible return values
  */
 ORG_API organya_result organya_song_init(organya_song *song);
 
 /**
- * Destroys and frees a song structure.
+ * Frees any existing event data.
+ *
+ * @param song Pointer to the organya_song structure
  */
 ORG_API void organya_song_deinit(organya_song *song);
 
 /**
- * Frees any existing event data and resets properties back to default.
+ * Frees any existing event data and sets properties to their defaults.
+ *
+ * @param song Pointer to the organya_song structure
+ * @param file_path Path of file to load
  */
 ORG_API void organya_song_clean(organya_song *song);
 
@@ -178,7 +187,10 @@ ORG_API void organya_song_clean(organya_song *song);
 /**
  * Loads and reads Organya data from a file.
  *
- * @param file_path path of file to load
+ * @param song Pointer to the organya_song structure
+ * @param file_path Path of file to load
+ *
+ * @returns see organya_result enum for possible return values
  */
 ORG_API organya_result organya_song_load_file(organya_song *song, const char *file_path);
 
@@ -187,8 +199,11 @@ ORG_API organya_result organya_song_load_file(organya_song *song, const char *fi
 /**
  * Reads Organya data.
  *
- * @param song_data song data bytes - this would be the contents of an org file
+ * @param song Pointer to the organya_song structure
+ * @param song_data Song data bytes - this would be the contents of an org file
  * @param data_length Length of song_data
+ *
+ * @returns see organya_result enum for possible return values
  */
 ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *song_data, size_t data_length);
 
@@ -309,12 +324,16 @@ typedef struct organya_context_s
 /**
  * Initializes an Organya context.
  *
- * @param context Pointer to context structure
+ * @param context Pointer to the organya_context structure
+ *
+ * @returns see organya_result enum for possible return values
  */
 ORG_API organya_result organya_context_init(organya_context *context);
 
 /**
  * Deinitializes an Organya context.
+ *
+ * @param context Pointer to the organya_context structure
  */
 ORG_API void organya_context_deinit(organya_context *context);
 
@@ -323,7 +342,10 @@ ORG_API void organya_context_deinit(organya_context *context);
 /**
  * Loads and reads soundbank data from a file.
  *
+ * @param context Pointer to the organya_context structure
  * @param file_path Path of .wdb file to load
+ *
+ * @returns see organya_result enum for possible return values
  */
 ORG_API organya_result organya_context_load_soundbank_file(organya_context *context, const char *file_path);
 
@@ -332,14 +354,18 @@ ORG_API organya_result organya_context_load_soundbank_file(organya_context *cont
 /**
  * Reads soundbank data.
  *
+ * @param context Pointer to the organya_context structure
  * @param bank_data Soundbank data bytes - this would be the contents of a wdb file
  * @param data_length Length of bank_data
+ *
+ * @returns see organya_result enum for possible return values
  */
 ORG_API organya_result organya_context_read_soundbank(organya_context *context, const org_uint8 *bank_data, size_t data_length);
 
 /**
  * Sets the playback sample rate.
  *
+ * @param context Pointer to the organya_context structure
  * @param sample_rate Samples per second
  */
 ORG_API void organya_context_set_sample_rate(organya_context *context, org_uint32 sample_rate);
@@ -347,6 +373,7 @@ ORG_API void organya_context_set_sample_rate(organya_context *context, org_uint3
 /**
  * Sets the playback volume.
  *
+ * @param context Pointer to the organya_context structure
  * @param volume Playback volume (1 is full volume)
  */
 ORG_API void organya_context_set_volume(organya_context *context, float volume);
@@ -354,6 +381,7 @@ ORG_API void organya_context_set_volume(organya_context *context, float volume);
 /**
  * Sets the interpolation mode. Affects quality of pitch changes.
  *
+ * @param context Pointer to the organya_context structure
  * @param mode Interpolation mode to use
  *
  * @see organya_interpolation
@@ -365,7 +393,10 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
 /**
  * Loads and reads Organya data from a file.
  *
+ * @param context Pointer to the organya_context structure
  * @param file_path Path of file to load
+ *
+ * @returns see organya_result enum for possible return values
  */
 ORG_API organya_result organya_context_load_song_file(organya_context *context, const char *file_path);
 
@@ -374,19 +405,25 @@ ORG_API organya_result organya_context_load_song_file(organya_context *context, 
 /**
  * Reads Organya data.
  *
+ * @param context Pointer to the organya_context structure
  * @param song_data Song data bytes - this would be the contents of an org file
  * @param data_length Length of song_data
+ *
+ * @returns see organya_result enum for possible return values
  */
 ORG_API organya_result organya_context_read_song(organya_context *context, const org_uint8 *song_data, size_t data_length);
 
 /**
  * Unloads the currently loaded song.
+ *
+ * @param context Pointer to the organya_context structure
  */
 ORG_API void organya_context_unload_song(organya_context *context);
 
 /**
  * Set current song position.
  *
+ * @param context Pointer to the organya_context structure
  * @param position Position to seek to
  */
 ORG_API void organya_context_seek(organya_context *context, org_uint32 position);
@@ -394,7 +431,8 @@ ORG_API void organya_context_seek(organya_context *context, org_uint32 position)
 /**
  * Set if a channel is muted.
  *
- * @param channel Channel index
+ * @param context Pointer to the organya_context structure
+ * @param channel Index of channel to mute
  * @param mute If the channel should be muted
  */
 ORG_API void organya_context_set_mute(organya_context *context, size_t channel, org_bool mute);
@@ -403,6 +441,7 @@ ORG_API void organya_context_set_mute(organya_context *context, size_t channel, 
  * Generate samples of Organya playback.
  * This function will write interleaved stereo samples to output in 32-bit floating point PCM format.
  *
+ * @param context Pointer to the organya_context structure
  * @param output Buffer, with sample_count * 2 elements
  * @param sample_count Number of samples to generate
  *
@@ -412,6 +451,8 @@ ORG_API size_t organya_context_generate_samples(organya_context *context, float 
 
 /**
  * Ticks the internal Organya player.
+ *
+ * @param context Pointer to the organya_context structure
  */
 ORG_API void organya_context_tick(organya_context *context);
 
