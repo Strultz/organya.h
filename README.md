@@ -35,6 +35,8 @@ int main()
     organya_context_set_sample_rate(&ctx, 44100);
     organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
     organya_context_set_volume(&ctx, 1);
+    /* Note: Using Lagrange interpolation produces output that sounds almost completely
+     * identical to the original Organya playback (on Windows Vista and later) */
 
     /* Load a soundbank from a file path: */
     if (organya_context_load_soundbank_file(&ctx, "path/to/file.wdb") != ORG_RESULT_SUCCESS)
