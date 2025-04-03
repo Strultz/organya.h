@@ -91,8 +91,8 @@ extern "C" {
     typedef unsigned char  org_uint8;
     typedef signed   short org_int16;
     typedef unsigned short org_uint16;
-    typedef signed   int   org_int32;
-    typedef unsigned int   org_uint32;
+    typedef signed   long  org_int32;
+    typedef unsigned long  org_uint32;
 #endif
 
 typedef org_uint8 org_bool;
