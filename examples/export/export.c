@@ -9,15 +9,15 @@
 static void file_write_u16(FILE *file, org_uint16 value)
 {
     fputc(value & 0xFF, file);
-    fputc(value >> 8 & 0xFF, file);
+    fputc((value >> 8) & 0xFF, file);
 }
 
 static void file_write_u32(FILE *file, org_uint32 value)
 {
     fputc(value & 0xFF, file);
-    fputc(value >> 8 & 0xFF, file);
-    fputc(value >> 16 & 0xFF, file);
-    fputc(value >> 24 & 0xFF, file);
+    fputc((value >> 8) & 0xFF, file);
+    fputc((value >> 16) & 0xFF, file);
+    fputc((value >> 24) & 0xFF, file);
 }
 
 static org_uint32 ceil_double_u32(double value)

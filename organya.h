@@ -1,4 +1,4 @@
-/*  organya.h v1.02-dev
+/*  organya.h v1.02
     Author: Strultz
 
 # organya.h
