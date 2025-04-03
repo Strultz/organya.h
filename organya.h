@@ -35,6 +35,8 @@ int main()
     organya_context_set_sample_rate(&ctx, 44100);
     organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
     organya_context_set_volume(&ctx, 1);
+    // Note: Using Lagrange interpolation produces output that sounds almost completely
+    // identical to the original Organya playback (on Windows Vista and later)
 
     // Load a soundbank from a file path:
     if (organya_context_load_soundbank_file(&ctx, "path/to/file.wdb") != ORG_RESULT_SUCCESS)
@@ -182,7 +184,7 @@ ORG_API void organya_song_deinit(organya_song *song);
  */
 ORG_API void organya_song_clean(organya_song *song);
 
-#ifndef ORGANYA_NO_STDIO
+#ifndef ORG_NO_STDIO
 
 /**
  * Loads and reads Organya data from a file.
@@ -337,7 +339,7 @@ ORG_API organya_result organya_context_init(organya_context *context);
  */
 ORG_API void organya_context_deinit(organya_context *context);
 
-#ifndef ORGANYA_NO_STDIO
+#ifndef ORG_NO_STDIO
 
 /**
  * Loads and reads soundbank data from a file.
@@ -388,7 +390,7 @@ ORG_API void organya_context_set_volume(organya_context *context, float volume);
  */
 ORG_API void organya_context_set_interpolation(organya_context *context, organya_interpolation mode);
 
-#ifndef ORGANYA_NO_STDIO
+#ifndef ORG_NO_STDIO
 
 /**
  * Loads and reads Organya data from a file.
@@ -469,7 +471,7 @@ ORG_API void organya_context_tick(organya_context *context);
 #include <string.h>
 #include <math.h>
 
-#ifndef ORGANYA_NO_STDIO
+#ifndef ORG_NO_STDIO
 #include <stdio.h>
 #endif
 
@@ -735,7 +737,7 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
     return ORG_RESULT_SUCCESS;
 }
 
-#ifndef ORGANYA_NO_STDIO
+#ifndef ORG_NO_STDIO
 
 ORG_API organya_result organya_song_load_file(organya_song *song, const char *file_path)
 {
@@ -1117,7 +1119,7 @@ ORG_API organya_result organya_context_read_soundbank(organya_context *context, 
     return ORG_RESULT_SUCCESS;
 }
 
-#ifndef ORGANYA_NO_STDIO
+#ifndef ORG_NO_STDIO
 
 ORG_API organya_result organya_context_load_soundbank_file(organya_context *context, const char *file_path)
 {
@@ -1257,7 +1259,7 @@ ORG_API organya_result organya_context_read_song(organya_context *context, const
     return organya_internal_context_load_instruments(context);
 }
 
-#ifndef ORGANYA_NO_STDIO
+#ifndef ORG_NO_STDIO
 
 ORG_API organya_result organya_context_load_song_file(organya_context *context, const char *file_path)
 {
