@@ -750,7 +750,7 @@ ORG_API organya_result organya_song_load_file(organya_song *song, const char *fi
     err = fopen_s(&file, file_path, "rb");
     if (err != 0)
     {
-        return ORG_RESULT_FILE_ERROR; /* Error */
+        return ORG_RESULT_FILE_ERROR;
     }
 #elif !defined(_WIN32) && !defined(__APPLE__) && defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS == 64 && defined(_LARGEFILE64_SOURCE)
     file = fopen64(file_path, "rb");
@@ -1040,7 +1040,7 @@ ORG_API void organya_context_deinit(organya_context *context)
         return;
     }
 
-    /* Unload and destroy song from context */
+    /* Unload song from context and destroy it */
     organya_context_unload_song(context);
     organya_song_deinit(&context->song);
 
