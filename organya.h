@@ -14,6 +14,7 @@ and was used in games such as Cave Story, Azarashi (2001 version), STARGAZER, an
 
 To use this library, just `#include "organya.h"` in your project. Define `ORGANYA_IMPLEMENTATION`
 before including the header in one .c file to create the implementation.
+You should also link with `-lm` on Linux/BSD systems.
 
 ## Example
 
@@ -123,40 +124,40 @@ typedef org_uint8 org_bool;
 
 typedef enum organya_result_e
 {
-    ORG_RESULT_SUCCESS = 0,
-    ORG_RESULT_ERROR,
-    ORG_RESULT_INVALID_ARGS,
-    ORG_RESULT_FILE_ERROR,
-    ORG_RESULT_MEMORY_ERROR
+    ORG_RESULT_SUCCESS = 0,     /* Successful */
+    ORG_RESULT_ERROR,           /* Generic failure status */
+    ORG_RESULT_INVALID_ARGS,    /* Passed in arguments were invalid */
+    ORG_RESULT_FILE_ERROR,      /* File didn't exist or hit EOF while reading */
+    ORG_RESULT_MEMORY_ERROR     /* Memory allocation failed */
 } organya_result;
 
 /* --- Song Handling --- */
 
 typedef struct organya_event_s
 {
-    org_uint32 position;                            /* X position of the event */
-    org_uint8 pitch;                                /* Pitch of the note (0 to 95 or ORG_PROPERTY_NOT_USED if none) */
-    org_uint8 length;                               /* Length of the note (should never be 0) */
-    org_uint8 volume;                               /* Volume of the note (0 to 254 or ORG_PROPERTY_NOT_USED if none) */
-    org_uint8 pan;                                  /* Panning of the note (0 to 12 or ORG_PROPERTY_NOT_USED if none) */
+    org_uint32 position;        /* X position of the event */
+    org_uint8 pitch;            /* Pitch of the note (0 to 95 or ORG_PROPERTY_NOT_USED if none) */
+    org_uint8 length;           /* Length of the note (should never be 0) */
+    org_uint8 volume;           /* Volume of the note (0 to 254 or ORG_PROPERTY_NOT_USED if none) */
+    org_uint8 pan;              /* Panning of the note (0 to 12 or ORG_PROPERTY_NOT_USED if none) */
 } organya_event;
 
 typedef struct organya_channel_s
 {
-    org_uint8 instrument;                           /* Channel instrument index */
-    org_uint16 finetune;                            /* Channel finetune, only used for melody channels (default is 1000) */
-    org_bool pizzicato;                             /* Notes will not loop, only used for melody channels */
+    org_uint8 instrument;       /* Channel instrument index */
+    org_uint16 finetune;        /* Channel finetune, only used for melody channels (default is 1000) */
+    org_bool pizzicato;         /* Notes will not loop, only used for melody channels */
     size_t event_count;
     organya_event *event_list;
 } organya_channel;
 
 typedef struct organya_song_s
 {
-    org_uint16 tempo_ms;                            /* How long one tick takes in milliseconds */
-    org_uint8 beats;                                /* Number of beats per bar. Does not affect playback */
-    org_uint8 steps;                                /* Number of steps per beat. Does not affect playback */
-    org_uint32 repeat_start;                        /* Repeat range start X position */
-    org_uint32 repeat_end;                          /* Repeat range end X position */
+    org_uint16 tempo_ms;        /* How long one tick takes in milliseconds */
+    org_uint8 beats;            /* Number of beats per bar. Does not affect playback */
+    org_uint8 steps;            /* Number of steps per beat. Does not affect playback */
+    org_uint32 repeat_start;    /* Repeat range start X position */
+    org_uint32 repeat_end;      /* Repeat range end X position */
     organya_channel channels[ORG_CHANNEL_COUNT];
 } organya_song;
 
@@ -534,7 +535,6 @@ ORG_API organya_result organya_song_init(organya_song *song)
     /* Initialize song data */
     organya_song_clean(song);
 
-    /* Success */
     return ORG_RESULT_SUCCESS;
 }
 
@@ -567,7 +567,7 @@ ORG_API void organya_song_clean(organya_song *song)
         return;
     }
 
-    /* Reset song info */
+    /* These are the default song properties in OrgMaker (as of 3.1.0) */
     song->tempo_ms = 125; /* 125 ms = 120 bpm (with the default settings) */
     song->beats = 4;
     song->steps = 4;
@@ -633,22 +633,22 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
 
     offset = 0;
 
-    /* Read and check magic */
-    if (ORG_READ_32_LE(&song_data[offset]) != 0x2D67724F) /* .org files always start with "Org-" */
+    /* .org files always start with "Org-" */
+    if (ORG_READ_32_LE(&song_data[offset]) != 0x2D67724F) /* "Org-" */
     {
         return ORG_RESULT_FILE_ERROR;
     }
 
     offset += 4;
 
-    /* Read and check version */
+    /* Read and check version (read done manually here as it's in ASCII) */
     version = (song_data[offset] - 48) * 10 + (song_data[offset + 1] - 48); offset += 2;
     if (version < 1 || version > 3) /* Org-01, Org-02, Org-03 */
     {
         return ORG_RESULT_FILE_ERROR;
     }
 
-    /* Reset song info */
+    /* Clear the previous song data */
     organya_song_clean(song);
 
     /* Read song header */
@@ -658,14 +658,13 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
     song->repeat_start = ORG_READ_32_LE(&song_data[offset]); offset += 4;
     song->repeat_end = ORG_READ_32_LE(&song_data[offset]); offset += 4;
 
-    /* Read channel info */
+    /* Read channel headers */
     for (i = 0; i < ORG_CHANNEL_COUNT; ++i)
     {
-        /* Read instrument data */
         song->channels[i].finetune = ORG_READ_16_LE(&song_data[offset]); offset += 2;
         song->channels[i].instrument = ORG_READ_8_LE(&song_data[offset]); ++offset;
 
-        /* v1 doesn't have this option, but there's still a byte here in the file structure */
+        /* Org-01 doesn't have this option, but there's still a byte there in the file structure */
         song->channels[i].pizzicato = (version > 1 ? ORG_READ_8_LE(&song_data[offset]) : 0); ++offset;
 
         /* Check for invalid instrument */
@@ -681,9 +680,9 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
     /* Read event data */
     for (i = 0; i < ORG_CHANNEL_COUNT; ++i)
     {
-        /* No events here */
         if (song->channels[i].event_count == 0)
         {
+            /* No events here */
             continue;
         }
 
@@ -691,7 +690,7 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
         if (offset + (song->channels[i].event_count * 8) > data_length)
         {
             organya_song_clean(song);
-            return ORG_RESULT_FILE_ERROR; /* EOF */
+            return ORG_RESULT_FILE_ERROR;
         }
 
         /* Allocate event list */
@@ -711,19 +710,19 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
             song->channels[i].event_list[j].volume = ORG_READ_8_LE(&song_data[offset + song->channels[i].event_count * 6 + j]);
             song->channels[i].event_list[j].pan = ORG_READ_8_LE(&song_data[offset + song->channels[i].event_count * 7 + j]);
 
-            /* Check for invalid note pitch */
+            /* Note pitch goes from 0-95, or 255 if there is no note there */
             if (song->channels[i].event_list[j].pitch >= (12 * 8) && song->channels[i].event_list[j].pitch != ORG_PROPERTY_NOT_USED)
             {
                 song->channels[i].event_list[j].pitch = ORG_PROPERTY_NOT_USED;
             }
 
-            /* Check for invalid note length */
+            /* Note volume goes from 0-254, or 255 if there is no volume there */
             if (song->channels[i].event_list[j].length == 0)
             {
                 song->channels[i].event_list[j].length = 1;
             }
 
-            /* Check for invalid note pan */
+            /* Note panning goes from 0-12, or 255 if there is no panning there */
             if (song->channels[i].event_list[j].pan > 12 && song->channels[i].event_list[j].pan != ORG_PROPERTY_NOT_USED)
             {
                 song->channels[i].event_list[j].pan = ORG_DEFAULT_PAN;
@@ -733,7 +732,6 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
         offset += song->channels[i].event_count * 8;
     }
 
-    /* Success */
     return ORG_RESULT_SUCCESS;
 }
 
@@ -869,7 +867,7 @@ ORG_PRIVATE organya_result organya_internal_context_load_instruments(organya_con
 
         if (percussion_data == NULL)
         {
-            continue; /* Error */
+            continue;
         }
 
         /* Read sound length */
@@ -892,7 +890,6 @@ ORG_PRIVATE organya_result organya_internal_context_load_instruments(organya_con
         }
     }
 
-    /* Success */
     return ORG_RESULT_SUCCESS;
 }
 
@@ -941,11 +938,9 @@ ORG_PRIVATE organya_result organya_internal_context_generate_sample(organya_cont
         return ORG_RESULT_INVALID_ARGS;
     }
 
-    /* Clear buffer */
     buffer[0] = 0;
     buffer[1] = 0;
 
-    /* Tick player */
     if (context->samples_to_next_tick <= 0)
     {
         organya_context_tick(context);
@@ -972,7 +967,6 @@ ORG_PRIVATE organya_result organya_internal_context_generate_sample(organya_cont
     buffer[0] *= context->volume;
     buffer[1] *= context->volume;
 
-    /* Success */
     return ORG_RESULT_SUCCESS;
 }
 
@@ -1046,10 +1040,8 @@ ORG_API void organya_context_deinit(organya_context *context)
         return;
     }
 
-    /* Unload song from context */
+    /* Unload and destroy song from context */
     organya_context_unload_song(context);
-
-    /* Destroy it */
     organya_song_deinit(&context->song);
 
     /* Delete percussion samples */
@@ -1089,7 +1081,7 @@ ORG_API organya_result organya_context_read_soundbank(organya_context *context, 
 
         if (offset + 4 > data_length)
         {
-            return ORG_RESULT_FILE_ERROR; /* EOF */
+            return ORG_RESULT_FILE_ERROR;
         }
 
         context->percussion_wave_data[i].length = ORG_READ_32_LE(&bank_data[offset]);
@@ -1097,12 +1089,13 @@ ORG_API organya_result organya_context_read_soundbank(organya_context *context, 
 
         if (context->percussion_wave_data[i].length == 0)
         {
-            continue; /* Invalid sample */
+            /* Invalid sample */
+            continue;
         }
 
         if (offset + context->percussion_wave_data[i].length > data_length)
         {
-            return ORG_RESULT_FILE_ERROR; /* EOF */
+            return ORG_RESULT_FILE_ERROR;
         }
 
         context->percussion_wave_data[i].data = (org_uint8 *)ORG_MALLOC(context->percussion_wave_data[i].length);
@@ -1115,7 +1108,6 @@ ORG_API organya_result organya_context_read_soundbank(organya_context *context, 
         offset += context->percussion_wave_data[i].length;
     }
 
-    /* Success */
     return ORG_RESULT_SUCCESS;
 }
 
@@ -1201,10 +1193,9 @@ ORG_API void organya_context_set_sample_rate(organya_context *context, org_uint3
         return;
     }
 
-    /* Set rate */
     context->sample_rate = sample_rate;
 
-    /* Update volume ramp (4ms) */
+    /* Update volume ramp (should be 4ms) */
     context->volume_ramp = (org_uint32)(context->sample_rate * 0.004F);
 
     /* Update all sounds data */
@@ -1218,7 +1209,6 @@ ORG_API void organya_context_set_volume(organya_context *context, float volume)
         return;
     }
 
-    /* Set volume */
     context->volume = volume;
 }
 
@@ -1229,7 +1219,6 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
         return;
     }
 
-    /* Set mode */
     context->interpolation = interpolation;
 
     /* Update all sounds data */
@@ -1245,7 +1234,6 @@ ORG_API organya_result organya_context_read_song(organya_context *context, const
         return ORG_RESULT_INVALID_ARGS;
     }
 
-    /* Load song */
     result = organya_song_read(&context->song, song_data, data_length);
     if (result != ORG_RESULT_SUCCESS)
     {
@@ -1270,7 +1258,6 @@ ORG_API organya_result organya_context_load_song_file(organya_context *context, 
         return ORG_RESULT_INVALID_ARGS;
     }
 
-    /* Load song from file */
     result = organya_song_load_file(&context->song, file_path);
     if (result != ORG_RESULT_SUCCESS)
     {
@@ -1315,7 +1302,7 @@ ORG_API void organya_context_unload_song(organya_context *context)
         context->percussion_index[i].pitch = ORG_PROPERTY_NOT_USED;
     }
 
-    /* Reset song info */
+    /* Clear song info */
     organya_song_clean(&context->song);
 }
 
@@ -1329,7 +1316,6 @@ ORG_API void organya_context_seek(organya_context *context, org_uint32 position)
         return;
     }
 
-    /* Set position */
     context->last_position = position;
     context->position = position;
 
@@ -1375,7 +1361,6 @@ ORG_API void organya_context_set_mute(organya_context *context, size_t channel, 
         return;
     }
 
-    /* Set muted */
     if (channel < ORG_MELODY_CHANNEL_COUNT)
     {
         context->melody_index[channel].muted = mute;
@@ -1400,7 +1385,7 @@ ORG_API void organya_context_tick(organya_context *context)
     /* Tick melody channels */
     for (i = 0; i < ORG_MELODY_CHANNEL_COUNT; ++i)
     {
-        /* Validity check */
+        /* Is there another event to handle? */
         if (context->melody_index[i].index < context->song.channels[i].event_count && !context->melody_index[i].muted)
         {
             event = &context->song.channels[i].event_list[context->melody_index[i].index];
@@ -1507,7 +1492,7 @@ ORG_API void organya_context_tick(organya_context *context)
     /* Tick percussion channels */
     for (i = 0; i < ORG_PERCUSSION_CHANNEL_COUNT; ++i)
     {
-        /* Validity check */
+        /* Is there another event to handle? */
         if (context->percussion_index[i].index < context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].event_count && !context->percussion_index[i].muted)
         {
             event = &context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].event_list[context->percussion_index[i].index];
@@ -1561,7 +1546,6 @@ ORG_API void organya_context_tick(organya_context *context)
         }
     }
 
-    /* Advance position */
     context->last_position = context->position;
     ++context->position;
 
@@ -1573,7 +1557,6 @@ ORG_API void organya_context_tick(organya_context *context)
         context->last_position = lp;
     }
 
-    /* Update time until next tick */
     context->samples_to_next_tick += (double)context->sample_rate * (double)context->song.tempo_ms / 1000.0;
 }
 
@@ -1594,7 +1577,8 @@ ORG_API size_t organya_context_generate_samples(organya_context *context, float 
     {
         if (organya_internal_context_generate_sample(context, p) != ORG_RESULT_SUCCESS)
         {
-            return i; /* Failed */
+            /* Failed */
+            return i;
         }
 
         p += 2;
@@ -1653,7 +1637,6 @@ ORG_PRIVATE organya_result organya_internal_sound_init(organya_internal_sound *s
     sound->out_volume_ramp = context->volume_ramp;
     sound->interpolation = context->interpolation;
 
-    /* Success */
     return ORG_RESULT_SUCCESS;
 }
 
@@ -1699,7 +1682,6 @@ ORG_PRIVATE void organya_internal_sound_set_volume(organya_internal_sound *sound
 
     sound->volume = (float)pow(10.0F, volume_db / 2000.0F);
 
-    /* Set target volume */
     sound->target_volume_left = sound->volume * sound->pan_left;
     sound->target_volume_right = sound->volume * sound->pan_right;
 
@@ -1744,7 +1726,6 @@ ORG_PRIVATE void organya_internal_sound_set_pan(organya_internal_sound *sound, o
         sound->pan_right = 1.0F;
     }
 
-    /* Set target volume */
     sound->target_volume_left = sound->volume * sound->pan_left;
     sound->target_volume_right = sound->volume * sound->pan_right;
 
@@ -1813,7 +1794,6 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
         sound->volume_left = sound->target_volume_left;
         sound->volume_right = sound->target_volume_right;
     #else
-        /* Slide to target */
         if (sound->volume_ticks > 0)
         {
             sound->volume_left += (sound->target_volume_left - sound->volume_left) / (float)sound->volume_ticks;
@@ -1828,7 +1808,6 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
         {
             case ORG_INTERPOLATION_NONE:
             {
-                /* No interpolation */
                 margin = sound->ring;
 
                 sample_mixed = sound->samples[margin];
@@ -1836,7 +1815,6 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
             }
             case ORG_INTERPOLATION_LINEAR:
             {
-                /* Linear interpolation */
                 float sample_a;
                 float sample_b;
 
@@ -1850,7 +1828,6 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
             }
             case ORG_INTERPOLATION_LAGRANGE:
             {
-                /* Lagrange interpolation */
                 float sample_a, sample_b, sample_c, sample_d;
                 float c0, c1, c2, c3;
 
@@ -1871,7 +1848,6 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
             }
             case ORG_INTERPOLATION_LANCZOS:
             {
-                /* Lanczos interpolation */
                 org_int32 j;
                 float sample_in;
                 float t;
