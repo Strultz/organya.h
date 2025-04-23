@@ -664,7 +664,7 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
         song->channels[i].finetune = ORG_READ_16_LE(&song_data[offset]); offset += 2;
         song->channels[i].instrument = ORG_READ_8_LE(&song_data[offset]); ++offset;
 
-        /* Org-01 doesn't have this option, but there's still a byte there in the file structure */
+        /* Org-01 doesn't have this option, but there's still a byte here in the file structure */
         song->channels[i].pizzicato = (version > 1 ? ORG_READ_8_LE(&song_data[offset]) : 0); ++offset;
 
         /* Check for invalid instrument */
