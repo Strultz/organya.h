@@ -135,7 +135,7 @@ typedef enum organya_result_e
 
 typedef struct organya_event_s
 {
-    org_uint32 position;        /* X position of the event */
+    org_int32 position;         /* X position of the event */
     org_uint8 pitch;            /* Pitch of the note (0 to 95 or ORG_PROPERTY_NOT_USED if none) */
     org_uint8 length;           /* Length of the note (should never be 0) */
     org_uint8 volume;           /* Volume of the note (0 to 254 or ORG_PROPERTY_NOT_USED if none) */
@@ -156,8 +156,8 @@ typedef struct organya_song_s
     org_uint16 tempo_ms;        /* How long one tick takes in milliseconds */
     org_uint8 beats;            /* Number of beats per bar. Does not affect playback */
     org_uint8 steps;            /* Number of steps per beat. Does not affect playback */
-    org_uint32 repeat_start;    /* Repeat range start X position */
-    org_uint32 repeat_end;      /* Repeat range end X position */
+    org_int32 repeat_start;     /* Repeat range start X position */
+    org_int32 repeat_end;       /* Repeat range end X position */
     organya_channel channels[ORG_CHANNEL_COUNT];
 } organya_song;
 
@@ -278,7 +278,7 @@ typedef struct organya_melody_s
     org_uint8 pan;                        /* Current pan */
 
     size_t index;                         /* Next note index */
-    org_uint32 ticks;                     /* Ticks left for current note */
+    org_int32 ticks;                      /* Ticks left for current note */
     org_uint8 alt;                        /* Alternate key index */
     org_bool muted;                       /* Channel mute */
 
@@ -302,8 +302,8 @@ typedef struct organya_context_s
 {
     /* Song playback data */
     organya_song song;
-    org_uint32 position;
-    org_uint32 last_position;
+    org_int32 position;
+    org_int32 last_position;
     double samples_to_next_tick;
     org_uint32 volume_ramp;
 
@@ -429,7 +429,7 @@ ORG_API void organya_context_unload_song(organya_context *context);
  * @param context Pointer to the organya_context structure
  * @param position Position to seek to
  */
-ORG_API void organya_context_seek(organya_context *context, org_uint32 position);
+ORG_API void organya_context_seek(organya_context *context, org_int32 position);
 
 /**
  * Set if a channel is muted.
@@ -1306,7 +1306,7 @@ ORG_API void organya_context_unload_song(organya_context *context)
     organya_song_clean(&context->song);
 }
 
-ORG_API void organya_context_seek(organya_context *context, org_uint32 position)
+ORG_API void organya_context_seek(organya_context *context, org_int32 position)
 {
     size_t i, j;
     organya_event *event;
