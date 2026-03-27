@@ -278,7 +278,7 @@ typedef struct organya_melody_s
     org_uint8 pan;                        /* Current pan */
 
     size_t index;                         /* Next note index */
-    org_int32 ticks;                      /* Ticks left for current note */
+    org_uint32 ticks;                     /* Ticks left for current note */
     org_uint8 alt;                        /* Alternate key index */
     org_bool muted;                       /* Channel mute */
 
