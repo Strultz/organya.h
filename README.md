@@ -34,10 +34,11 @@ int main()
 
     /* Set everything up (these are the default settings): */
     organya_context_set_sample_rate(&ctx, 44100);
-    organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
     organya_context_set_volume(&ctx, 1);
-    /* Note: Using Lagrange interpolation produces output that sounds almost completely
-     * identical to the original Organya playback (on Windows Vista and later) */
+    organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
+    organya_context_set_output_format(&ctx, ORG_OUTPUT_FORMAT_F32);
+    /* Note: Using Lagrange interpolation produces output that sounds (almost)
+     * identical to original Organya playback (on Windows Vista and later) */
 
     /* Load a soundbank from a file path: */
     if (organya_context_load_soundbank_file(&ctx, "path/to/file.wdb") != ORG_RESULT_SUCCESS)
@@ -53,12 +54,14 @@ int main()
         organya_context_deinit(&ctx);
         return -1;
     }
-    /* Alternatively, you can load both of these directly from some pointer using
-     * organya_context_read_soundbank() and organya_context_read_song(). */
+    /* Alternatively, you can load both of these directly from some pointer
+     * using organya_context_read_soundbank() & organya_context_read_song(). */
 
-    /* Generate samples (which would then be output to an audio player, or a .wav file, or etc.)
-     * This will output interleaved stereo 32-bit floating point PCM to output_buffer.
-     * output_buffer should be at least num_samples * sizeof(float) * 2 long. */
+    /* Generate samples (which would then be output to an audio player, or a
+     * .wav file, or etc.). This will output interleaved stereo PCM samples in
+     * the format set with organya_context_set_output_format to output_buffer.
+     * output_buffer should be at least num_samples * sizeof(output_format) * 2
+     * long. */
     organya_context_generate_samples(&ctx, output_buffer, num_samples);
 
     /* When you're done, deinitialize and free everything: */

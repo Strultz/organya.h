@@ -34,10 +34,11 @@ int main()
 
     // Set everything up (these are the default settings):
     organya_context_set_sample_rate(&ctx, 44100);
-    organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
     organya_context_set_volume(&ctx, 1);
-    // Note: Using Lagrange interpolation produces output that sounds almost completely
-    // identical to the original Organya playback (on Windows Vista and later)
+    organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
+    organya_context_set_output_format(&ctx, ORG_OUTPUT_FORMAT_F32);
+    // Note: Using Lagrange interpolation produces output that sounds (almost)
+    // identical to original Organya playback (on Windows Vista and later)
 
     // Load a soundbank from a file path:
     if (organya_context_load_soundbank_file(&ctx, "path/to/file.wdb") != ORG_RESULT_SUCCESS)
@@ -56,10 +57,12 @@ int main()
     // Alternatively, you can load both of these directly from some pointer using
     // organya_context_read_soundbank() and organya_context_read_song().
 
-    // Generate samples (which would then be output to an audio player, or a .wav file, or etc.)
-    // This will output interleaved stereo 32-bit floating point PCM to output_buffer.
-    // output_buffer should be at least num_samples * sizeof(float) * 2 long.
-    organya_context_generate_samples(&ctx, output_buffer, num_samples);
+    // Generate samples (which would then be output to an audio player, or a
+    // .wav file, or etc.). This will output interleaved stereo PCM samples in
+    // the format set with organya_context_set_output_format to output_buffer.
+    // output_buffer should be at least num_samples * sizeof(output_format) * 2
+    // long.
+    organya_context_generate_samples(&ctx, (void *)output_buffer, num_samples);
 
     // When you're done, deinitialize and free everything.
     organya_context_deinit(&ctx);
@@ -122,18 +125,18 @@ typedef org_uint8 org_bool;
 
 /* --- */
 
-typedef enum organya_result_e
+typedef enum organya_result
 {
     ORG_RESULT_SUCCESS = 0,     /* Successful */
-    ORG_RESULT_ERROR,           /* Generic failure status */
+    ORG_RESULT_ERROR,           /* Generic error status */
     ORG_RESULT_INVALID_ARGS,    /* Passed in arguments were invalid */
-    ORG_RESULT_FILE_ERROR,      /* File didn't exist or hit EOF while reading */
+    ORG_RESULT_FILE_ERROR,      /* Unable to open file or hit EOF while reading */
     ORG_RESULT_MEMORY_ERROR     /* Memory allocation failed */
 } organya_result;
 
 /* --- Song Handling --- */
 
-typedef struct organya_event_s
+typedef struct organya_event
 {
     org_int32 position;         /* X position of the event */
     org_uint8 pitch;            /* Pitch of the note (0 to 95 or ORG_PROPERTY_NOT_USED if none) */
@@ -142,16 +145,16 @@ typedef struct organya_event_s
     org_uint8 pan;              /* Panning of the note (0 to 12 or ORG_PROPERTY_NOT_USED if none) */
 } organya_event;
 
-typedef struct organya_channel_s
+typedef struct organya_channel
 {
     org_uint8 instrument;       /* Channel instrument index */
     org_uint16 finetune;        /* Channel finetune, only used for melody channels (default is 1000) */
-    org_bool pizzicato;         /* Notes will not loop, only used for melody channels */
+    org_bool pizzicato;         /* Notes will not sustain, only used for melody channels */
     size_t event_count;
     organya_event *event_list;
 } organya_channel;
 
-typedef struct organya_song_s
+typedef struct organya_song
 {
     org_uint16 tempo_ms;        /* How long one tick takes in milliseconds */
     org_uint8 beats;            /* Number of beats per bar. Does not affect playback */
@@ -167,14 +170,14 @@ typedef struct organya_song_s
  * @param song Pointer to the organya_song structure
  *
  * @returns Success/failure status; see organya_result enum for possible values
- */
+**/
 ORG_API organya_result organya_song_init(organya_song *song);
 
 /**
  * Frees any existing event data.
  *
  * @param song Pointer to the organya_song structure
- */
+**/
 ORG_API void organya_song_deinit(organya_song *song);
 
 /**
@@ -182,7 +185,7 @@ ORG_API void organya_song_deinit(organya_song *song);
  *
  * @param song Pointer to the organya_song structure
  * @param file_path Path of file to load
- */
+**/
 ORG_API void organya_song_clean(organya_song *song);
 
 #ifndef ORG_NO_STDIO
@@ -194,7 +197,7 @@ ORG_API void organya_song_clean(organya_song *song);
  * @param file_path Path of file to load
  *
  * @returns Success/failure status; see organya_result enum for possible values
- */
+**/
 ORG_API organya_result organya_song_load_file(organya_song *song, const char *file_path);
 
 #endif
@@ -207,7 +210,7 @@ ORG_API organya_result organya_song_load_file(organya_song *song, const char *fi
  * @param data_length Length of song_data
  *
  * @returns Success/failure status; see organya_result enum for possible values
- */
+**/
 ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *song_data, size_t data_length);
 
 /* --- Context Handling --- */
@@ -223,7 +226,7 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
 #define ORG_MAX_MARGIN  ORG_MAX(ORG_LANCZOS_WINDOW, 2)
 #define ORG_MAX_TAPS    (ORG_MAX_MARGIN * 2)
 
-typedef enum organya_interpolation_e
+typedef enum organya_interpolation
 {
     ORG_INTERPOLATION_NONE = 0,     /* Fastest speed, lowest quality */
     ORG_INTERPOLATION_LINEAR,       /* Fast speed, medium quality */
@@ -231,8 +234,16 @@ typedef enum organya_interpolation_e
     ORG_INTERPOLATION_LANCZOS       /* Slow speed, highest quality */
 } organya_interpolation;
 
+typedef enum organya_output_format
+{
+    ORG_OUTPUT_FORMAT_F32 = 0,      /* 32 bit floating point */
+    ORG_OUTPUT_FORMAT_S32,          /* 32 bit signed integer */
+    ORG_OUTPUT_FORMAT_S16,          /* 16 bit signed integer */
+    ORG_OUTPUT_FORMAT_U8            /* 8 bit unsigned integer */
+} organya_output_format;
+
 /* Internal sample data */
-typedef struct organya_internal_sound_s
+typedef struct organya_internal_sound
 {
     size_t sample_count;                                                /* Number of samples */
     org_int8 *data;                                                     /* Sample buffer */
@@ -271,7 +282,7 @@ typedef struct organya_internal_sound_s
 } organya_internal_sound;
 
 /* Channel playback data */
-typedef struct organya_melody_s
+typedef struct organya_melody
 {
     org_uint8 pitch;                      /* Current pitch (or ORG_PROPERTY_NOT_USED if nothing is playing) */
     org_uint8 volume;                     /* Current volume */
@@ -285,7 +296,7 @@ typedef struct organya_melody_s
     organya_internal_sound sounds[8][2];  /* Internal sounds */
 } organya_melody;
 
-typedef struct organya_percussion_s
+typedef struct organya_percussion
 {
     org_uint8 pitch;                      /* Current pitch (or ORG_PROPERTY_NOT_USED if nothing is playing) */
     org_uint8 volume;                     /* Current volume */
@@ -298,7 +309,7 @@ typedef struct organya_percussion_s
 } organya_percussion;
 
 /* The main context */
-typedef struct organya_context_s
+typedef struct organya_context
 {
     /* Song playback data */
     organya_song song;
@@ -314,6 +325,7 @@ typedef struct organya_context_s
     float volume;
     org_uint32 sample_rate;
     organya_interpolation interpolation;
+    organya_output_format output_format;
 
     /* For soundbanks: */
     org_uint8 melody_wave_data[ORG_WAVETABLE_COUNT * 0x100];
@@ -330,14 +342,14 @@ typedef struct organya_context_s
  * @param context Pointer to the organya_context structure
  *
  * @returns Success/failure status; see organya_result enum for possible values
- */
+**/
 ORG_API organya_result organya_context_init(organya_context *context);
 
 /**
  * Deinitializes an Organya context.
  *
  * @param context Pointer to the organya_context structure
- */
+**/
 ORG_API void organya_context_deinit(organya_context *context);
 
 #ifndef ORG_NO_STDIO
@@ -349,7 +361,7 @@ ORG_API void organya_context_deinit(organya_context *context);
  * @param file_path Path of .wdb file to load
  *
  * @returns Success/failure status; see organya_result enum for possible values
- */
+**/
 ORG_API organya_result organya_context_load_soundbank_file(organya_context *context, const char *file_path);
 
 #endif
@@ -362,7 +374,7 @@ ORG_API organya_result organya_context_load_soundbank_file(organya_context *cont
  * @param data_length Length of bank_data
  *
  * @returns Success/failure status; see organya_result enum for possible values
- */
+**/
 ORG_API organya_result organya_context_read_soundbank(organya_context *context, const org_uint8 *bank_data, size_t data_length);
 
 /**
@@ -370,7 +382,7 @@ ORG_API organya_result organya_context_read_soundbank(organya_context *context, 
  *
  * @param context Pointer to the organya_context structure
  * @param sample_rate Samples per second
- */
+**/
 ORG_API void organya_context_set_sample_rate(organya_context *context, org_uint32 sample_rate);
 
 /**
@@ -378,18 +390,28 @@ ORG_API void organya_context_set_sample_rate(organya_context *context, org_uint3
  *
  * @param context Pointer to the organya_context structure
  * @param volume Playback volume (1 is full volume)
- */
+**/
 ORG_API void organya_context_set_volume(organya_context *context, float volume);
 
 /**
  * Sets the interpolation mode. Affects quality of pitch changes.
  *
  * @param context Pointer to the organya_context structure
- * @param mode Interpolation mode to use
+ * @param interpolation Interpolation mode to use
  *
  * @see organya_interpolation
- */
-ORG_API void organya_context_set_interpolation(organya_context *context, organya_interpolation mode);
+**/
+ORG_API void organya_context_set_interpolation(organya_context *context, organya_interpolation interpolation);
+
+/**
+ * Sets the format to output samples in.
+ *
+ * @param context Pointer to the organya_context structure
+ * @param output_format Output format to use
+ *
+ * @see organya_output_format
+**/
+ORG_API void organya_context_set_output_format(organya_context *context, organya_output_format output_format);
 
 #ifndef ORG_NO_STDIO
 
@@ -400,7 +422,7 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
  * @param file_path Path of file to load
  *
  * @returns Success/failure status; see organya_result enum for possible values
- */
+**/
 ORG_API organya_result organya_context_load_song_file(organya_context *context, const char *file_path);
 
 #endif
@@ -413,14 +435,14 @@ ORG_API organya_result organya_context_load_song_file(organya_context *context, 
  * @param data_length Length of song_data
  *
  * @returns Success/failure status; see organya_result enum for possible values
- */
+**/
 ORG_API organya_result organya_context_read_song(organya_context *context, const org_uint8 *song_data, size_t data_length);
 
 /**
  * Unloads the currently loaded song.
  *
  * @param context Pointer to the organya_context structure
- */
+**/
 ORG_API void organya_context_unload_song(organya_context *context);
 
 /**
@@ -428,7 +450,7 @@ ORG_API void organya_context_unload_song(organya_context *context);
  *
  * @param context Pointer to the organya_context structure
  * @param position Position to seek to
- */
+**/
 ORG_API void organya_context_seek(organya_context *context, org_int32 position);
 
 /**
@@ -437,7 +459,7 @@ ORG_API void organya_context_seek(organya_context *context, org_int32 position);
  * @param context Pointer to the organya_context structure
  * @param channel Index of channel to mute
  * @param mute If the channel should be muted
- */
+**/
 ORG_API void organya_context_set_mute(organya_context *context, size_t channel, org_bool mute);
 
 /**
@@ -449,14 +471,14 @@ ORG_API void organya_context_set_mute(organya_context *context, size_t channel, 
  * @param sample_count Number of samples to generate
  *
  * @returns Number of samples generated
- */
-ORG_API size_t organya_context_generate_samples(organya_context *context, float *output, size_t sample_count);
+**/
+ORG_API size_t organya_context_generate_samples(organya_context *context, void *output, size_t sample_count);
 
 /**
  * Ticks the internal Organya player.
  *
  * @param context Pointer to the organya_context structure
- */
+**/
 ORG_API void organya_context_tick(organya_context *context);
 
 #ifdef __cplusplus
@@ -511,7 +533,7 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
 /* --- Context Handling --- */
 
 /* Constant tables */
-static const org_int16 organya_wave_size_table[ORG_MELODY_CHANNEL_COUNT] = {256, 256, 128, 128, 64, 32, 16, 8};
+static const org_int16 organya_wave_size_table[8] = {256, 256, 128, 128, 64, 32, 16, 8};
 static const org_int16 organya_frequency_table[12] = {262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494};
 static const org_int16 organya_panning_table[13] = {0, 43, 86, 129, 172, 215, 256, 297, 340, 383, 426, 469, 512};
 
@@ -605,7 +627,7 @@ ORG_API void organya_song_clean(organya_song *song)
     }
 
     /* Default percussion instruments
-     * XXX: This should be improved. Maybe a table? */
+     * XXX: Ugly code */
     song->channels[ORG_MELODY_CHANNEL_COUNT + 0].instrument = 0;
     song->channels[ORG_MELODY_CHANNEL_COUNT + 1].instrument = 2;
     song->channels[ORG_MELODY_CHANNEL_COUNT + 2].instrument = 5;
@@ -929,17 +951,14 @@ ORG_PRIVATE void organya_internal_context_set_sound_settings(organya_context *co
     }
 }
 
-ORG_PRIVATE organya_result organya_internal_context_generate_sample(organya_context *context, float *buffer)
+ORG_PRIVATE size_t organya_internal_context_generate_sample(organya_context *context, organya_output_format output_format, void *buffer)
 {
     size_t i, j;
+    size_t write_length;
+    float f_buffer[2];
 
-    if (context == NULL)
-    {
-        return ORG_RESULT_INVALID_ARGS;
-    }
-
-    buffer[0] = 0;
-    buffer[1] = 0;
+    f_buffer[0] = 0;
+    f_buffer[1] = 0;
 
     if (context->samples_to_next_tick <= 0)
     {
@@ -952,22 +971,66 @@ ORG_PRIVATE organya_result organya_internal_context_generate_sample(organya_cont
     {
         for (j = 0; j < 8; ++j)
         {
-            organya_internal_sound_generate_sample(&context->melody_index[i].sounds[j][0], buffer);
-            organya_internal_sound_generate_sample(&context->melody_index[i].sounds[j][1], buffer);
+            organya_internal_sound_generate_sample(&context->melody_index[i].sounds[j][0], f_buffer);
+            organya_internal_sound_generate_sample(&context->melody_index[i].sounds[j][1], f_buffer);
         }
     }
 
     /* Generate percussion samples */
     for (i = 0; i < ORG_PERCUSSION_CHANNEL_COUNT; ++i)
     {
-        organya_internal_sound_generate_sample(&context->percussion_index[i].sound, buffer);
+        organya_internal_sound_generate_sample(&context->percussion_index[i].sound, f_buffer);
     }
 
     /* Apply context volume */
-    buffer[0] *= context->volume;
-    buffer[1] *= context->volume;
+    f_buffer[0] *= context->volume;
+    f_buffer[1] *= context->volume;
 
-    return ORG_RESULT_SUCCESS;
+    /* Convert to selected format */
+    switch (output_format)
+    {
+        case ORG_OUTPUT_FORMAT_F32:
+        {
+            write_length = 4 * 2;
+            ((float *)buffer)[0] = f_buffer[0];
+            ((float *)buffer)[1] = f_buffer[1];
+            break;
+        }
+        case ORG_OUTPUT_FORMAT_S32: /* It's really just a 24 bit conversion */
+        {
+            write_length = 4 * 2;
+            f_buffer[0] *= (float)0x7FFFFF;
+            f_buffer[1] *= (float)0x7FFFFF;
+            ((org_int32 *)buffer)[0] = (org_int32)ORG_CLAMP(f_buffer[0], -0x7FFFFF, 0x7FFFFF) << 8;
+            ((org_int32 *)buffer)[1] = (org_int32)ORG_CLAMP(f_buffer[1], -0x7FFFFF, 0x7FFFFF) << 8;
+            break;
+        }
+        case ORG_OUTPUT_FORMAT_S16:
+        {
+            write_length = 2 * 2;
+            f_buffer[0] *= (float)0x7FFF;
+            f_buffer[1] *= (float)0x7FFF;
+            ((org_int16 *)buffer)[0] = (org_int16)ORG_CLAMP(f_buffer[0], -0x7FFF, 0x7FFF);
+            ((org_int16 *)buffer)[1] = (org_int16)ORG_CLAMP(f_buffer[1], -0x7FFF, 0x7FFF);
+            break;
+        }
+        case ORG_OUTPUT_FORMAT_U8:
+        {
+            write_length = 1 * 2;
+            f_buffer[0] = (f_buffer[0] + 1.0F) * 127.5f;
+            f_buffer[1] = (f_buffer[1] + 1.0F) * 127.5f;
+            ((org_uint8 *)buffer)[0] = (org_uint8)ORG_CLAMP(f_buffer[0], 0, 0xFF);
+            ((org_uint8 *)buffer)[1] = (org_uint8)ORG_CLAMP(f_buffer[1], 0, 0xFF);
+            break;
+        }
+        default:
+        {
+            write_length = 0;
+            break;
+        }
+    }
+
+    return write_length;
 }
 
 /* API functions */
@@ -994,9 +1057,10 @@ ORG_API organya_result organya_context_init(organya_context *context)
     context->samples_to_next_tick = 0.0;
 
     context->sample_rate = 44100;
-    /* Lagrange interpolation is the closest to original Organya playback on Windows Vista and later. */
-    context->interpolation = ORG_INTERPOLATION_LAGRANGE;
     context->volume = 1;
+    /* Lagrange interpolation is the same as original Organya playback on Windows Vista and later. */
+    context->interpolation = ORG_INTERPOLATION_LAGRANGE;
+    context->output_format = ORG_OUTPUT_FORMAT_F32;
 
     /* Should be 4ms */
     context->volume_ramp = (org_uint32)(context->sample_rate * 0.004F);
@@ -1223,6 +1287,16 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
 
     /* Update all sounds data */
     organya_internal_context_set_sound_settings(context);
+}
+
+ORG_API void organya_context_set_output_format(organya_context *context, organya_output_format output_format)
+{
+    if (context == NULL)
+    {
+        return;
+    }
+
+    context->output_format = output_format;
 }
 
 ORG_API organya_result organya_context_read_song(organya_context *context, const org_uint8 *song_data, size_t data_length)
@@ -1560,28 +1634,31 @@ ORG_API void organya_context_tick(organya_context *context)
     context->samples_to_next_tick += (double)context->sample_rate * (double)context->song.tempo_ms / 1000.0;
 }
 
-ORG_API size_t organya_context_generate_samples(organya_context *context, float *output, size_t sample_count)
+ORG_API size_t organya_context_generate_samples(organya_context *context, void *output, size_t sample_count)
 {
     size_t i;
-    float *p;
+    size_t write_length;
+    org_uint8 *p;
 
     if (context == NULL || output == NULL)
     {
         return 0;
     }
 
-    p = output;
+    p = (org_uint8 *)output;
 
     /* Generate samples */
     for (i = 0; i < sample_count; ++i)
     {
-        if (organya_internal_context_generate_sample(context, p) != ORG_RESULT_SUCCESS)
+        write_length = organya_internal_context_generate_sample(context, context->output_format, (void *)p);
+
+        if (write_length == 0)
         {
-            /* Failed */
+            /* Done */
             return i;
         }
 
-        p += 2;
+        p += write_length;
     }
 
     return sample_count;
