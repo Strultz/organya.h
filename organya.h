@@ -35,9 +35,9 @@ int main()
     // Set everything up (these are the default settings):
     organya_context_set_sample_rate(&ctx, 44100);
     organya_context_set_volume(&ctx, 1);
-    organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
+    organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_CUBIC);
     organya_context_set_output_format(&ctx, ORG_OUTPUT_FORMAT_F32);
-    // Note: Using Lagrange interpolation produces output that sounds (almost)
+    // Note: Using Cubic interpolation produces output that sounds (almost)
     // identical to original Organya playback (on Windows Vista and later)
 
     // Load a soundbank from a file path:
@@ -127,40 +127,40 @@ typedef org_uint8 org_bool;
 
 typedef enum organya_result
 {
-    ORG_RESULT_SUCCESS = 0,     /* Successful */
-    ORG_RESULT_ERROR,           /* Generic error status */
-    ORG_RESULT_INVALID_ARGS,    /* Passed in arguments were invalid */
-    ORG_RESULT_FILE_ERROR,      /* Unable to open file or hit EOF while reading */
-    ORG_RESULT_MEMORY_ERROR     /* Memory allocation failed */
+    ORG_RESULT_SUCCESS = 0,  /* Successful */
+    ORG_RESULT_ERROR,        /* Generic error status */
+    ORG_RESULT_INVALID_ARGS, /* Passed in arguments were invalid */
+    ORG_RESULT_FILE_ERROR,   /* Unable to open file or hit EOF while reading */
+    ORG_RESULT_MEMORY_ERROR  /* Memory allocation failed */
 } organya_result;
 
 /* --- Song Handling --- */
 
 typedef struct organya_event
 {
-    org_int32 position;         /* X position of the event */
-    org_uint8 pitch;            /* Pitch of the note (0 to 95 or ORG_PROPERTY_NOT_USED if none) */
-    org_uint8 length;           /* Length of the note (should never be 0) */
-    org_uint8 volume;           /* Volume of the note (0 to 254 or ORG_PROPERTY_NOT_USED if none) */
-    org_uint8 pan;              /* Panning of the note (0 to 12 or ORG_PROPERTY_NOT_USED if none) */
+    org_int32 position; /* X position of the event */
+    org_uint8 pitch;    /* Pitch of the note (0 to 95 or ORG_PROPERTY_NOT_USED if none) */
+    org_uint8 length;   /* Length of the note (should never be 0) */
+    org_uint8 volume;   /* Volume of the note (0 to 254 or ORG_PROPERTY_NOT_USED if none) */
+    org_uint8 pan;      /* Panning of the note (0 to 12 or ORG_PROPERTY_NOT_USED if none) */
 } organya_event;
 
 typedef struct organya_channel
 {
-    org_uint8 instrument;       /* Channel instrument index */
-    org_uint16 finetune;        /* Channel finetune, only used for melody channels (default is 1000) */
-    org_bool pizzicato;         /* Notes will not sustain, only used for melody channels */
+    org_uint8 instrument; /* Channel instrument index */
+    org_uint16 finetune;  /* Channel finetune, only used for melody channels (default is 1000) */
+    org_bool pizzicato;   /* Notes will not sustain, only used for melody channels */
     size_t event_count;
     organya_event *event_list;
 } organya_channel;
 
 typedef struct organya_song
 {
-    org_uint16 tempo_ms;        /* How long one tick takes in milliseconds */
-    org_uint8 beats;            /* Number of beats per bar. Does not affect playback */
-    org_uint8 steps;            /* Number of steps per beat. Does not affect playback */
-    org_int32 repeat_start;     /* Repeat range start X position */
-    org_int32 repeat_end;       /* Repeat range end X position */
+    org_uint16 tempo_ms;    /* How long one tick takes in milliseconds */
+    org_uint8 beats;        /* Number of beats per bar. Does not affect playback */
+    org_uint8 steps;        /* Number of steps per beat. Does not affect playback */
+    org_int32 repeat_start; /* Repeat range start X position */
+    org_int32 repeat_end;   /* Repeat range end X position */
     organya_channel channels[ORG_CHANNEL_COUNT];
 } organya_song;
 
@@ -220,63 +220,64 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
 #define ORG_ABS(a)      ((a) > 0 ? (a) : -(a))
 
 #ifndef ORG_LANCZOS_WINDOW
-    #define ORG_LANCZOS_WINDOW 4
+    #define ORG_LANCZOS_WINDOW 3
 #endif
 
 #define ORG_MAX_MARGIN  ORG_MAX(ORG_LANCZOS_WINDOW, 2)
 #define ORG_MAX_TAPS    (ORG_MAX_MARGIN * 2)
 
+/* Cubic interpolation is the default setting for accuracy's sake. */
 typedef enum organya_interpolation
 {
-    ORG_INTERPOLATION_NONE = 0,     /* Fastest speed, lowest quality */
-    ORG_INTERPOLATION_LINEAR,       /* Fast speed, medium quality */
-    ORG_INTERPOLATION_LAGRANGE,     /* Medium speed, high quality. Default. */
-    ORG_INTERPOLATION_LANCZOS       /* Slow speed, highest quality */
+    ORG_INTERPOLATION_NONE = 0, /* Zero order hold (1 point) */
+    ORG_INTERPOLATION_LINEAR,   /* Linear interpolation (2 point) */
+    ORG_INTERPOLATION_CUBIC,    /* Lagrange interpolation (4 point) */
+    ORG_INTERPOLATION_SINC      /* Lanczos interpolation (6 point) */
 } organya_interpolation;
 
 typedef enum organya_output_format
 {
-    ORG_OUTPUT_FORMAT_F32 = 0,      /* 32 bit floating point */
-    ORG_OUTPUT_FORMAT_S32,          /* 32 bit signed integer */
-    ORG_OUTPUT_FORMAT_S16,          /* 16 bit signed integer */
-    ORG_OUTPUT_FORMAT_U8            /* 8 bit unsigned integer */
+    ORG_OUTPUT_FORMAT_F32 = 0, /* 32 bit floating point */
+    ORG_OUTPUT_FORMAT_S32,     /* 32 bit signed integer */
+    ORG_OUTPUT_FORMAT_S16,     /* 16 bit signed integer */
+    ORG_OUTPUT_FORMAT_U8       /* 8 bit unsigned integer */
 } organya_output_format;
 
 /* Internal sample data */
 typedef struct organya_internal_sound
 {
-    size_t sample_count;                                                /* Number of samples */
-    org_int8 *data;                                                     /* Sample buffer */
+    size_t sample_count;                 /* Number of samples */
+    org_int8 *data;                      /* Sample buffer */
 
-    float samples[ORG_MAX_TAPS];                                        /* Active samples buffer */
+    float samples[ORG_MAX_TAPS];         /* Active samples buffer */
 
-    org_uint32 position;                                                /* Playback position */
-    float sub_position;                                                 /* Subframe position */
+    org_uint32 position;                 /* Playback position */
+    float sub_position;                  /* Subframe position */
 
-    org_uint32 frequency;                                               /* Playback frequency */
-    float position_increment;                                           /* Affects speed */
+    org_uint32 frequency;                /* Playback frequency */
+    float position_increment;            /* Affects speed */
 
-    org_uint32 ring;                                                    /* Samples position */
+    org_uint32 ring;                     /* Samples position */
 
-    org_bool playing;                                                   /* True if sound is currently playing */
-    org_bool looping;                                                   /* True if sound should loop */
+    org_bool playing;                    /* If sound is currently playing */
+    org_bool looping;                    /* If sound should loop */
 
-    org_uint32 out_sample_rate;                                         /* Output sample rate */
-    org_uint32 out_volume_ramp;                                         /* Volume ramp speed */
-    organya_interpolation interpolation;                                /* Current interpolation mode */
+    org_uint32 out_sample_rate;          /* Output sample rate */
+    org_uint32 out_volume_ramp;          /* Volume ramp speed */
+    organya_interpolation interpolation; /* Current interpolation mode */
 
-    float volume;                                                       /* Sound volume */
-    float pan_left;                                                     /* Sound left pan */
-    float pan_right;                                                    /* Sound right pan */
+    float volume;                        /* Sound volume */
+    float pan_left;                      /* Sound left pan */
+    float pan_right;                     /* Sound right pan */
 
-    float volume_left;                                                  /* Actual volume of left channel */
-    float volume_right;                                                 /* Actual volume of right channel */
+    float volume_left;                   /* Actual volume of left channel */
+    float volume_right;                  /* Actual volume of right channel */
 
-    float target_volume_left;                                           /* Target volume of left channel */
-    float target_volume_right;                                          /* Target volume of right channel */
+    float target_volume_left;            /* Target volume of left channel */
+    float target_volume_right;           /* Target volume of right channel */
 
-    org_uint32 volume_ticks;                                            /* Volume slide ticks */
-    org_uint32 total_samples;                                           /* Internal number of samples */
+    org_uint32 volume_ticks;             /* Volume slide ticks */
+    org_uint32 total_samples;            /* Internal number of samples */
 
     org_uint8 silence_timer;
 } organya_internal_sound;
@@ -284,7 +285,7 @@ typedef struct organya_internal_sound
 /* Channel playback data */
 typedef struct organya_melody
 {
-    org_uint8 pitch;                      /* Current pitch (or ORG_PROPERTY_NOT_USED if nothing is playing) */
+    org_uint8 pitch;                      /* Current pitch, or ORG_PROPERTY_NOT_USED if nothing is playing */
     org_uint8 volume;                     /* Current volume */
     org_uint8 pan;                        /* Current pan */
 
@@ -298,14 +299,14 @@ typedef struct organya_melody
 
 typedef struct organya_percussion
 {
-    org_uint8 pitch;                      /* Current pitch (or ORG_PROPERTY_NOT_USED if nothing is playing) */
-    org_uint8 volume;                     /* Current volume */
-    org_uint8 pan;                        /* Current pan */
+    org_uint8 pitch;              /* Current pitch, or ORG_PROPERTY_NOT_USED if nothing is playing */
+    org_uint8 volume;             /* Current volume */
+    org_uint8 pan;                /* Current pan */
 
-    size_t index;                         /* Next note index */
-    org_bool muted;                       /* Channel mute */
+    size_t index;                 /* Next note index */
+    org_bool muted;               /* Channel mute */
 
-    organya_internal_sound sound;         /* Internal sound */
+    organya_internal_sound sound; /* Internal sound */
 } organya_percussion;
 
 /* The main context */
@@ -1058,8 +1059,8 @@ ORG_API organya_result organya_context_init(organya_context *context)
 
     context->sample_rate = 44100;
     context->volume = 1;
-    /* Lagrange interpolation is the same as original Organya playback on Windows Vista and later. */
-    context->interpolation = ORG_INTERPOLATION_LAGRANGE;
+    /* Cubic interpolation (4 point Lagrange) is the same as original Organya playback on Windows Vista and later. */
+    context->interpolation = ORG_INTERPOLATION_CUBIC;
     context->output_format = ORG_OUTPUT_FORMAT_F32;
 
     /* Should be 4ms */
@@ -1885,6 +1886,7 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
         {
             case ORG_INTERPOLATION_NONE:
             {
+                /* Zero order hold. */
                 margin = sound->ring;
 
                 sample_mixed = sound->samples[margin];
@@ -1892,6 +1894,7 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
             }
             case ORG_INTERPOLATION_LINEAR:
             {
+                /* Linear interpolation. */
                 float sample_a;
                 float sample_b;
 
@@ -1903,8 +1906,10 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
                 sample_mixed = sample_a + (sample_b - sample_a) * sound->sub_position;
                 break;
             }
-            case ORG_INTERPOLATION_LAGRANGE:
+            case ORG_INTERPOLATION_CUBIC:
             {
+                /* 4-point Lagrange interpolation. */
+                /* It should be noted that this algorithm produces nearly identical results to DirectSound output, on Windows Vista onwards. */
                 float sample_a, sample_b, sample_c, sample_d;
                 float c0, c1, c2, c3;
 
@@ -1923,8 +1928,10 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
                 sample_mixed = ((c3 * sound->sub_position + c2) * sound->sub_position + c1) * sound->sub_position + c0;
                 break;
             }
-            case ORG_INTERPOLATION_LANCZOS:
+            case ORG_INTERPOLATION_SINC:
             {
+                /* Sinc interpolation with a Lanczos window. */
+                /* ORG_LANCZOS_WINDOW can be re-defined before this file is included, to change how many points the algorithm uses. */
                 org_int32 j;
                 float sample_in;
                 float t;

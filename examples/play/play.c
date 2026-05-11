@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
 
     /* Set properties */
     organya_context_set_sample_rate(&ctx, device.sampleRate);
-    organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_LAGRANGE);
+    organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_CUBIC);
     organya_context_set_volume(&ctx, 1);
 
     /* Load soundbank from file */
