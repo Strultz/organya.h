@@ -36,7 +36,7 @@ int main()
     organya_context_set_sample_rate(&ctx, 44100);
     organya_context_set_volume(&ctx, 1);
     organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_CUBIC);
-    organya_context_set_output_format(&ctx, ORG_OUTPUT_FORMAT_F32);
+    organya_context_set_output_format(&ctx, ORG_OUTPUT_FORMAT_F32, ORG_FALSE);
     /* Note: Using Cubic interpolation produces output that sounds (almost)
      * identical to original Organya playback (on Windows Vista and later) */
 
