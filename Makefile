@@ -6,7 +6,7 @@ ifeq ($(OS), Windows_NT)
     EXPORT := $(EXPORT).exe
 endif
 
-CFLAGS := -std=c89 -pedantic -O2 -I.
+CFLAGS := -std=c89 -pedantic -Wno-long-long -O3 -I.
 LDFLAGS := -lm
 
 .PHONY: all

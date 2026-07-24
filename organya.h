@@ -36,7 +36,7 @@ int main()
     organya_context_set_sample_rate(&ctx, 44100);
     organya_context_set_volume(&ctx, 1);
     organya_context_set_interpolation(&ctx, ORG_INTERPOLATION_CUBIC);
-    organya_context_set_output_format(&ctx, ORG_OUTPUT_FORMAT_F32);
+    organya_context_set_output_format(&ctx, ORG_OUTPUT_FORMAT_F32, ORG_FALSE);
     // Note: Using Cubic interpolation produces output that sounds (almost)
     // identical to original Organya playback (on Windows Vista and later)
 
@@ -339,6 +339,8 @@ typedef struct organya_context
     org_uint32 sample_rate;
     organya_interpolation interpolation;
     organya_output_format output_format;
+    org_bool dither_output;
+    org_uint32 dither_rng;
 
     /* For soundbanks: */
     org_uint8 melody_wave_data[ORG_WAVETABLE_COUNT * 0x100];
@@ -421,10 +423,11 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
  *
  * @param context Pointer to the organya_context structure
  * @param output_format Output format to use
+ * @param dither_output Enable dithering for integer formats
  *
  * @see organya_output_format
 **/
-ORG_API void organya_context_set_output_format(organya_context *context, organya_output_format output_format);
+ORG_API void organya_context_set_output_format(organya_context *context, organya_output_format output_format, org_bool dither_output);
 
 #ifndef ORG_NO_STDIO
 
@@ -1059,6 +1062,16 @@ ORG_PRIVATE void organya_internal_context_set_sound_settings(organya_context *co
     }
 }
 
+ORG_PRIVATE float organya_internal_context_dither_rng(organya_context *context)
+{
+    org_uint32 x;
+
+    context->dither_rng = (context->dither_rng * 214013U) + 2531011U;
+    x = (context->dither_rng >> 16) & 0x7FFFU;
+
+    return x / 32767.0f;
+}
+
 ORG_PRIVATE size_t organya_internal_context_generate_sample(organya_context *context, organya_output_format output_format, void *buffer)
 {
     size_t i, j;
@@ -1107,28 +1120,46 @@ ORG_PRIVATE size_t organya_internal_context_generate_sample(organya_context *con
         case ORG_OUTPUT_FORMAT_S32: /* It's really just a 24 bit conversion */
         {
             write_length = 4 * 2;
-            f_buffer[0] *= (float)0x7FFFFF;
-            f_buffer[1] *= (float)0x7FFFFF;
-            ((org_int32 *)buffer)[0] = (org_int32)ORG_CLAMP(f_buffer[0], -0x7FFFFF, 0x7FFFFF) << 8;
-            ((org_int32 *)buffer)[1] = (org_int32)ORG_CLAMP(f_buffer[1], -0x7FFFFF, 0x7FFFFF) << 8;
+            f_buffer[0] *= 8388607.0F;
+            f_buffer[1] *= 8388607.0F;
+            if (context->dither_output)
+            {
+                /* Apply dithering */
+                f_buffer[0] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
+                f_buffer[1] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
+            }
+            ((org_int32 *)buffer)[0] = (org_int32)ORG_CLAMP(f_buffer[0] + 0.5F, -0x7FFFFF, 0x7FFFFF) << 8;
+            ((org_int32 *)buffer)[1] = (org_int32)ORG_CLAMP(f_buffer[1] + 0.5F, -0x7FFFFF, 0x7FFFFF) << 8;
             break;
         }
         case ORG_OUTPUT_FORMAT_S16:
         {
             write_length = 2 * 2;
-            f_buffer[0] *= (float)0x7FFF;
-            f_buffer[1] *= (float)0x7FFF;
-            ((org_int16 *)buffer)[0] = (org_int16)ORG_CLAMP(f_buffer[0], -0x7FFF, 0x7FFF);
-            ((org_int16 *)buffer)[1] = (org_int16)ORG_CLAMP(f_buffer[1], -0x7FFF, 0x7FFF);
+            f_buffer[0] *= 32767.0F;
+            f_buffer[1] *= 32767.0F;
+            if (context->dither_output)
+            {
+                /* Apply dithering */
+                f_buffer[0] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
+                f_buffer[1] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
+            }
+            ((org_int16 *)buffer)[0] = (org_int16)ORG_CLAMP(f_buffer[0] + 0.5F, -0x7FFF, 0x7FFF);
+            ((org_int16 *)buffer)[1] = (org_int16)ORG_CLAMP(f_buffer[1] + 0.5F, -0x7FFF, 0x7FFF);
             break;
         }
         case ORG_OUTPUT_FORMAT_U8:
         {
             write_length = 1 * 2;
-            f_buffer[0] = (f_buffer[0] + 1.0F) * 127.5f;
-            f_buffer[1] = (f_buffer[1] + 1.0F) * 127.5f;
-            ((org_uint8 *)buffer)[0] = (org_uint8)ORG_CLAMP(f_buffer[0], 0, 0xFF);
-            ((org_uint8 *)buffer)[1] = (org_uint8)ORG_CLAMP(f_buffer[1], 0, 0xFF);
+            f_buffer[0] = (f_buffer[0] + 1.0F) * 127.5F;
+            f_buffer[1] = (f_buffer[1] + 1.0F) * 127.5F;
+            if (context->dither_output)
+            {
+                /* Apply dithering */
+                f_buffer[0] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
+                f_buffer[1] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
+            }
+            ((org_uint8 *)buffer)[0] = (org_uint8)ORG_CLAMP(f_buffer[0] + 0.5F, 0, 0xFF);
+            ((org_uint8 *)buffer)[1] = (org_uint8)ORG_CLAMP(f_buffer[1] + 0.5F, 0, 0xFF);
             break;
         }
         default:
@@ -1169,6 +1200,8 @@ ORG_API organya_result organya_context_init(organya_context *context)
     /* Cubic interpolation (4 point Lagrange) is the same as original Organya playback on Windows Vista and later. */
     context->interpolation = ORG_INTERPOLATION_CUBIC;
     context->output_format = ORG_OUTPUT_FORMAT_F32;
+    context->dither_output = ORG_FALSE;
+    context->dither_rng = 1;
 
     /* Should be 4ms */
     context->volume_ramp = (org_uint32)(context->sample_rate * 0.004F);
@@ -1397,7 +1430,7 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
     organya_internal_context_set_sound_settings(context);
 }
 
-ORG_API void organya_context_set_output_format(organya_context *context, organya_output_format output_format)
+ORG_API void organya_context_set_output_format(organya_context *context, organya_output_format output_format, org_bool dither_output)
 {
     if (context == NULL)
     {
@@ -1405,6 +1438,7 @@ ORG_API void organya_context_set_output_format(organya_context *context, organya
     }
 
     context->output_format = output_format;
+    context->dither_output = dither_output;
 }
 
 ORG_API organya_result organya_context_read_song(organya_context *context, const org_uint8 *song_data, size_t data_length)
@@ -1975,7 +2009,7 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
     {
         p = output;
 
-    #ifdef ORG_NO_VOLUME_SLIDE
+    #ifdef ORG_NO_VOLUME_RAMP
         sound->volume_left = sound->target_volume_left;
         sound->volume_right = sound->target_volume_right;
     #else
