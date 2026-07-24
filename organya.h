@@ -123,6 +123,8 @@ typedef org_uint8 org_bool;
 #define ORG_DEFAULT_VOLUME              200             /* Default volume of notes */
 #define ORG_DEFAULT_PAN                 6               /* Default pan of notes */
 
+#define ORG_COMMENT_STRING_LENGTH       0x20
+
 /* --- */
 
 typedef enum organya_result
@@ -154,6 +156,15 @@ typedef struct organya_channel
     organya_event *event_list;
 } organya_channel;
 
+typedef struct organya_comments
+{
+    char name[ORG_COMMENT_STRING_LENGTH + 1];
+    char author[ORG_COMMENT_STRING_LENGTH + 1];
+    char version[ORG_COMMENT_STRING_LENGTH + 1];
+    char *text;
+    org_bool open_comments;
+} organya_comments;
+
 typedef struct organya_song
 {
     org_uint16 tempo_ms;    /* How long one tick takes in milliseconds */
@@ -162,6 +173,7 @@ typedef struct organya_song
     org_int32 repeat_start; /* Repeat range start X position */
     org_int32 repeat_end;   /* Repeat range end X position */
     organya_channel channels[ORG_CHANNEL_COUNT];
+    organya_comments comments;
 } organya_song;
 
 /**
@@ -555,6 +567,9 @@ ORG_API organya_result organya_song_init(organya_song *song)
         song->channels[i].event_list = NULL;
     }
 
+    /* It tries to free the comments text too */
+    song->comments.text = NULL;
+
     /* Initialize song data */
     organya_song_clean(song);
 
@@ -579,6 +594,13 @@ ORG_API void organya_song_deinit(organya_song *song)
             song->channels[i].event_list = NULL;
         }
     }
+
+    /* Free comments text */
+    if (song->comments.text != NULL)
+    {
+        ORG_FREE(song->comments.text);
+        song->comments.text = NULL;
+    }
 }
 
 ORG_API void organya_song_clean(organya_song *song)
@@ -590,7 +612,7 @@ ORG_API void organya_song_clean(organya_song *song)
         return;
     }
 
-    /* These are the default song properties in OrgMaker (as of 3.1.0) */
+    /* These are the default song properties in OrgMaker 3.1.0 */
     song->tempo_ms = 125; /* 125 ms = 120 bpm (with the default settings) */
     song->beats = 4;
     song->steps = 4;
@@ -635,6 +657,18 @@ ORG_API void organya_song_clean(organya_song *song)
     song->channels[ORG_MELODY_CHANNEL_COUNT + 3].instrument = 6;
     song->channels[ORG_MELODY_CHANNEL_COUNT + 4].instrument = 4;
     song->channels[ORG_MELODY_CHANNEL_COUNT + 5].instrument = 8;
+
+    /* Clear comments */
+    memset(song->comments.name, '\0', ORG_COMMENT_STRING_LENGTH + 1);
+    memset(song->comments.author, '\0', ORG_COMMENT_STRING_LENGTH + 1);
+    memset(song->comments.version, '\0', ORG_COMMENT_STRING_LENGTH + 1);
+
+    if (song->comments.text != NULL)
+    {
+        ORG_FREE(song->comments.text);
+        song->comments.text = NULL;
+    }
+    song->comments.open_comments = ORG_FALSE;
 }
 
 ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *song_data, size_t data_length)
@@ -753,6 +787,79 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
         }
 
         offset += song->channels[i].event_count * 8;
+    }
+
+    /* Check if we have a metadata segment */
+    if (offset + 6 > data_length)
+    {
+        return ORG_RESULT_SUCCESS;
+    }
+
+    /* Read the OM3MD segment. This is OrgMaker 3's custom metadata block */
+    if (memcmp(&song_data[offset], "OM3MD", 5) == 0)
+    {
+        org_uint8 version;
+        char *comments;
+        size_t comments_length;
+
+        /* Read ascii version number */
+        version = song_data[offset + 5] - '0';
+        offset += 6;
+
+        if (version < 1 || version > 2) /* OM3MD1, OM3MD2 */
+        {
+            /* We don't need to fail, just ignore the metadata */
+            return ORG_RESULT_SUCCESS;
+        }
+
+        if (offset + ORG_COMMENT_STRING_LENGTH * 3 > data_length)
+        {
+            return ORG_RESULT_SUCCESS;
+        }
+
+        memcpy(song->comments.name, &song_data[offset], ORG_COMMENT_STRING_LENGTH); offset += ORG_COMMENT_STRING_LENGTH;
+        memcpy(song->comments.author, &song_data[offset], ORG_COMMENT_STRING_LENGTH); offset += ORG_COMMENT_STRING_LENGTH;
+        memcpy(song->comments.version, &song_data[offset], ORG_COMMENT_STRING_LENGTH); offset += ORG_COMMENT_STRING_LENGTH;
+        song->comments.name[ORG_COMMENT_STRING_LENGTH] = '\0';
+        song->comments.author[ORG_COMMENT_STRING_LENGTH] = '\0';
+        song->comments.version[ORG_COMMENT_STRING_LENGTH] = '\0';
+
+        /* The comments text is a zero-terminated string.
+         * We're going to count it manually, to not create a possible overread if the file is invalid */
+        for (i = offset; i < data_length && song_data[i] != '\0'; ++i);
+
+        if (i == data_length)
+        {
+            /* We hit the end, so the string was invalid */
+            return ORG_RESULT_SUCCESS;
+        }
+
+        comments_length = i - offset;
+
+        /* If the length is 0, the string is empty, so it just stays NULL */
+        if (comments_length > 0)
+        {
+            /* Allocate the string copy */
+            comments = (char *)ORG_MALLOC(comments_length + 1);
+            if (comments == NULL)
+            {
+                /* This failed. Loading the comments doesn't need to be as strict, so just stop reading */
+                return ORG_RESULT_SUCCESS;
+            }
+
+            memcpy(comments, &song_data[offset], comments_length + 1); offset = i + 1;
+
+            song->comments.text = comments;
+        }
+
+        if (version < 2 || offset + 1 > data_length)
+        {
+            return ORG_RESULT_SUCCESS;
+        }
+
+        song->comments.open_comments = ORG_READ_8_LE(&song_data[offset]); offset++;
+
+        /* TODO: We don't read any additional chunks, such as DEFS or TCOL */
     }
 
     return ORG_RESULT_SUCCESS;
@@ -1908,8 +2015,8 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
             }
             case ORG_INTERPOLATION_CUBIC:
             {
-                /* 4-point Lagrange interpolation. */
-                /* It should be noted that this algorithm produces nearly identical results to DirectSound output, on Windows Vista onwards. */
+                /* 4-point, 3rd-order Lagrange interpolation. */
+                /* It should be noted that this specific algorithm produces nearly identical results to DirectSound output, on Windows Vista onwards. */
                 float sample_a, sample_b, sample_c, sample_d;
                 float c0, c1, c2, c3;
 
