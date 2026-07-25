@@ -159,7 +159,7 @@ typedef struct organya_channel
 typedef struct organya_comments
 {
     char name[ORG_COMMENT_STRING_LENGTH + 1];
-    char author[ORG_COMMENT_STRING_LENGTH + 1];
+    char artist[ORG_COMMENT_STRING_LENGTH + 1];
     char version[ORG_COMMENT_STRING_LENGTH + 1];
     char *text;
     org_bool open_comments;
@@ -663,7 +663,7 @@ ORG_API void organya_song_clean(organya_song *song)
 
     /* Clear comments */
     memset(song->comments.name, '\0', ORG_COMMENT_STRING_LENGTH + 1);
-    memset(song->comments.author, '\0', ORG_COMMENT_STRING_LENGTH + 1);
+    memset(song->comments.artist, '\0', ORG_COMMENT_STRING_LENGTH + 1);
     memset(song->comments.version, '\0', ORG_COMMENT_STRING_LENGTH + 1);
 
     if (song->comments.text != NULL)
@@ -821,10 +821,10 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
         }
 
         memcpy(song->comments.name, &song_data[offset], ORG_COMMENT_STRING_LENGTH); offset += ORG_COMMENT_STRING_LENGTH;
-        memcpy(song->comments.author, &song_data[offset], ORG_COMMENT_STRING_LENGTH); offset += ORG_COMMENT_STRING_LENGTH;
+        memcpy(song->comments.artist, &song_data[offset], ORG_COMMENT_STRING_LENGTH); offset += ORG_COMMENT_STRING_LENGTH;
         memcpy(song->comments.version, &song_data[offset], ORG_COMMENT_STRING_LENGTH); offset += ORG_COMMENT_STRING_LENGTH;
         song->comments.name[ORG_COMMENT_STRING_LENGTH] = '\0';
-        song->comments.author[ORG_COMMENT_STRING_LENGTH] = '\0';
+        song->comments.artist[ORG_COMMENT_STRING_LENGTH] = '\0';
         song->comments.version[ORG_COMMENT_STRING_LENGTH] = '\0';
 
         /* The comments text is a zero-terminated string.
@@ -2167,7 +2167,7 @@ ORG_PRIVATE void organya_internal_sound_generate_sample(organya_internal_sound *
 #endif /* ORGANYA_IMPLEMENTATION */
 
 /*
-Copyright (c) 2025 Strultz
+Copyright (c) 2026 Strultz
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted.
