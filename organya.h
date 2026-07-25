@@ -1,4 +1,4 @@
-/*  organya.h v1.03-dev
+/*  organya.h v1.03
     Author: Strultz
 
 # organya.h
@@ -1069,7 +1069,7 @@ ORG_PRIVATE float organya_internal_context_dither_rng(organya_context *context)
     context->dither_rng = (context->dither_rng * 214013U) + 2531011U;
     x = (context->dither_rng >> 16) & 0x7FFFU;
 
-    return x / 32767.0f;
+    return x / 32767.0f - 0.5f;
 }
 
 ORG_PRIVATE size_t organya_internal_context_generate_sample(organya_context *context, organya_output_format output_format, void *buffer)
@@ -1125,11 +1125,11 @@ ORG_PRIVATE size_t organya_internal_context_generate_sample(organya_context *con
             if (context->dither_output)
             {
                 /* Apply dithering */
-                f_buffer[0] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
-                f_buffer[1] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
+                f_buffer[0] += (organya_internal_context_dither_rng(context) + organya_internal_context_dither_rng(context));
+                f_buffer[1] += (organya_internal_context_dither_rng(context) + organya_internal_context_dither_rng(context));
             }
-            ((org_int32 *)buffer)[0] = (org_int32)ORG_CLAMP(f_buffer[0] + 0.5F, -0x7FFFFF, 0x7FFFFF) << 8;
-            ((org_int32 *)buffer)[1] = (org_int32)ORG_CLAMP(f_buffer[1] + 0.5F, -0x7FFFFF, 0x7FFFFF) << 8;
+            ((org_int32 *)buffer)[0] = (org_int32)((org_uint32)ORG_CLAMP(f_buffer[0] + (f_buffer[0] < 0.0F ? -0.5F : 0.5F), -0x800000, 0x7FFFFF) << 8);
+            ((org_int32 *)buffer)[1] = (org_int32)((org_uint32)ORG_CLAMP(f_buffer[1] + (f_buffer[1] < 0.0F ? -0.5F : 0.5F), -0x800000, 0x7FFFFF) << 8);
             break;
         }
         case ORG_OUTPUT_FORMAT_S16:
@@ -1140,26 +1140,26 @@ ORG_PRIVATE size_t organya_internal_context_generate_sample(organya_context *con
             if (context->dither_output)
             {
                 /* Apply dithering */
-                f_buffer[0] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
-                f_buffer[1] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
+                f_buffer[0] += (organya_internal_context_dither_rng(context) + organya_internal_context_dither_rng(context));
+                f_buffer[1] += (organya_internal_context_dither_rng(context) + organya_internal_context_dither_rng(context));
             }
-            ((org_int16 *)buffer)[0] = (org_int16)ORG_CLAMP(f_buffer[0] + 0.5F, -0x7FFF, 0x7FFF);
-            ((org_int16 *)buffer)[1] = (org_int16)ORG_CLAMP(f_buffer[1] + 0.5F, -0x7FFF, 0x7FFF);
+            ((org_int16 *)buffer)[0] = (org_int16)ORG_CLAMP(f_buffer[0] + (f_buffer[0] < 0.0F ? -0.5F : 0.5F), -0x8000, 0x7FFF);
+            ((org_int16 *)buffer)[1] = (org_int16)ORG_CLAMP(f_buffer[1] + (f_buffer[1] < 0.0F ? -0.5F : 0.5F), -0x8000, 0x7FFF);
             break;
         }
         case ORG_OUTPUT_FORMAT_U8:
         {
             write_length = 1 * 2;
-            f_buffer[0] = (f_buffer[0] + 1.0F) * 127.5F;
-            f_buffer[1] = (f_buffer[1] + 1.0F) * 127.5F;
+            f_buffer[0] = (f_buffer[0] * 127.5F) + 128.0F;
+            f_buffer[1] = (f_buffer[1] * 127.5F) + 128.0F;
             if (context->dither_output)
             {
                 /* Apply dithering */
-                f_buffer[0] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
-                f_buffer[1] += (organya_internal_context_dither_rng(context) - organya_internal_context_dither_rng(context)) * 0.5F;
+                f_buffer[0] += (organya_internal_context_dither_rng(context) + organya_internal_context_dither_rng(context));
+                f_buffer[1] += (organya_internal_context_dither_rng(context) + organya_internal_context_dither_rng(context));
             }
-            ((org_uint8 *)buffer)[0] = (org_uint8)ORG_CLAMP(f_buffer[0] + 0.5F, 0, 0xFF);
-            ((org_uint8 *)buffer)[1] = (org_uint8)ORG_CLAMP(f_buffer[1] + 0.5F, 0, 0xFF);
+            ((org_uint8 *)buffer)[0] = (org_uint8)ORG_CLAMP(f_buffer[0] + (f_buffer[0] < 0.0F ? -0.5F : 0.5F), 0, 0xFF);
+            ((org_uint8 *)buffer)[1] = (org_uint8)ORG_CLAMP(f_buffer[1] + (f_buffer[1] < 0.0F ? -0.5F : 0.5F), 0, 0xFF);
             break;
         }
         default:
