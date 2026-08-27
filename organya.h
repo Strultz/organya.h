@@ -167,6 +167,7 @@ typedef struct organya_comments
     char version[ORG_COMMENT_STRING_LENGTH + 1];
     char *text;
     org_bool open_comments;
+    /* TODO: Extra metadata segments */
 } organya_comments;
 
 typedef struct organya_song
@@ -279,7 +280,8 @@ enum organya_compat_flags
     ORG_COMPAT_CS_PIZZICATO_BUG = 1 << 4, /* From Cave Story: Pizzicato functionality was broken. */
     ORG_COMPAT_CS_VOLUME_BUG    = 1 << 5, /* From Cave Story, OrgView: Volume events at the end of a song would sometimes not work. */
     ORG_COMPAT_CS_PERCUSSION    = 1 << 6, /* From Cave Story: The percussion instruments were hard-coded. */
-    ORG_COMPAT_NO_VOLUME_RAMP   = 1 << 7  /* Disable volume ramping, resulting in a click when volumes are changed. */
+    ORG_COMPAT_NO_VOLUME_RAMP   = 1 << 7, /* Disable volume ramping, resulting in a click when volumes are changed. */
+    ORG_COMPAT_LEGACY_PAUSING   = 1 << 8  /* Use old method for pausing and resuming music. */
 };
 
 /* Internal sample data. Not intended to be used directly */
@@ -355,6 +357,7 @@ typedef struct organya_context
     org_uint32 sample_rate;
     organya_interpolation interpolation;
     organya_output_format output_format;
+    org_bool paused;
     org_bool dither_output;
     org_uint32 dither_rng;
     org_uint32 compat_flags;
@@ -447,6 +450,18 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
 ORG_API void organya_context_set_output_format(organya_context *context, organya_output_format output_format, org_bool dither_output);
 
 /**
+ * Sets the compatibilty flags, which are various options designed to enable compatibilty with other Organya players.
+ *
+ * @param context Pointer to the organya_context structure
+ * @param flags Flags to use, ORed together
+ *
+ * @returns Success/failure status; see organya_result enum for possible values
+ *
+ * @see organya_compat_flags
+**/
+ORG_API organya_result organya_context_set_compat_flags(organya_context *context, org_uint32 flags);
+
+/**
  * Set the song data this structure should play back.
  *
  * @param context Pointer to the organya_context structure
@@ -504,6 +519,20 @@ ORG_API void organya_context_seek(organya_context *context, org_int32 position);
  * @param mute If the channel should be muted
 **/
 ORG_API void organya_context_set_mute(organya_context *context, size_t channel, org_bool mute);
+
+/**
+ * Pauses the active song playback.
+ *
+ * @param context Pointer to the organya_context structure
+**/
+ORG_API void organya_context_pause(organya_context *context);
+
+/**
+ * Resumes the active song playback.
+ *
+ * @param context Pointer to the organya_context structure
+**/
+ORG_API void organya_context_resume(organya_context *context);
 
 /**
  * Generate samples of Organya playback.
@@ -1020,7 +1049,7 @@ ORG_API organya_result organya_song_load_file(organya_song *song, const char *fi
 
 /* organya_context */
 
-ORG_PRIVATE organya_result organya_internal_context_load_instruments(organya_context *context)
+ORG_PRIVATE organya_result organya_internal_context_load_instruments(organya_context *context, org_bool force_percussion)
 {
     organya_result result;
     size_t i, j, k;
@@ -1073,6 +1102,11 @@ ORG_PRIVATE organya_result organya_internal_context_load_instruments(organya_con
     {
         org_uint8 instrument;
 
+        if (context->compat_flags & ORG_COMPAT_CS_PERCUSSION && !force_percussion && context->percussion_index[i].sound.data != NULL)
+        {
+            continue;
+        }
+
         if (context->compat_flags & ORG_COMPAT_CS_PERCUSSION)
         {
             instrument = organya_default_percussion[i];
@@ -1082,7 +1116,7 @@ ORG_PRIVATE organya_result organya_internal_context_load_instruments(organya_con
             instrument = context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].instrument;
         }
 
-        percussion_data = context->percussion_wave_data[context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].instrument].data;
+        percussion_data = context->percussion_wave_data[instrument].data;
 
         if (percussion_data == NULL)
         {
@@ -1090,7 +1124,7 @@ ORG_PRIVATE organya_result organya_internal_context_load_instruments(organya_con
         }
 
         /* Read sound length */
-        sample_count = context->percussion_wave_data[context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].instrument].length;
+        sample_count = context->percussion_wave_data[instrument].length;
 
         /* Delete old sound if there is one */
         organya_internal_sound_deinit(&context->percussion_index[i].sound);
@@ -1137,7 +1171,6 @@ ORG_PRIVATE void organya_internal_context_set_sound_settings(organya_context *co
                 context->melody_index[i].sounds[j][k].interpolation = context->interpolation;
 
                 organya_internal_sound_set_frequency(&context->melody_index[i].sounds[j][k], context->melody_index[i].sounds[j][k].frequency);
-
             }
         }
     }
@@ -1263,6 +1296,7 @@ ORG_API organya_result organya_context_init(organya_context *context)
         return result;
     }
 
+    context->paused = ORG_TRUE;
     context->position = 0;
     context->last_position = 0;
     context->samples_to_next_tick = 0.0;
@@ -1511,17 +1545,20 @@ ORG_API void organya_context_set_output_format(organya_context *context, organya
     context->dither_output = dither_output;
 }
 
-ORG_API void organya_context_set_compat_flags(organya_context *context, org_uint32 flags)
+ORG_API organya_result organya_context_set_compat_flags(organya_context *context, org_uint32 flags)
 {
     if (context == NULL)
     {
-        return;
+        return ORG_RESULT_INVALID_ARGS;
     }
 
     context->compat_flags = flags;
 
     /* Update all sounds data */
     organya_internal_context_set_sound_settings(context);
+
+    /* Create and load instrument data */
+    return organya_internal_context_load_instruments(context, ORG_TRUE);
 }
 
 ORG_API organya_result organya_context_set_song(organya_context *context, organya_song *song)
@@ -1541,9 +1578,10 @@ ORG_API organya_result organya_context_set_song(organya_context *context, organy
 
     /* Seek to start */
     organya_context_seek(context, 0);
+    context->paused = ORG_FALSE;
 
     /* Create and load instrument data */
-    return organya_internal_context_load_instruments(context);
+    return organya_internal_context_load_instruments(context, ORG_FALSE);
 }
 
 ORG_API organya_result organya_context_read_song(organya_context *context, const org_uint8 *song_data, size_t data_length)
@@ -1563,9 +1601,10 @@ ORG_API organya_result organya_context_read_song(organya_context *context, const
 
     /* Seek to start */
     organya_context_seek(context, 0);
+    context->paused = ORG_FALSE;
 
     /* Create and load instrument data */
-    return organya_internal_context_load_instruments(context);
+    return organya_internal_context_load_instruments(context, ORG_FALSE);
 }
 
 #ifndef ORG_NO_STDIO
@@ -1587,9 +1626,10 @@ ORG_API organya_result organya_context_load_song_file(organya_context *context, 
 
     /* Seek to start */
     organya_context_seek(context, 0);
+    context->paused = ORG_FALSE;
 
     /* Create and load instrument data */
-    return organya_internal_context_load_instruments(context);
+    return organya_internal_context_load_instruments(context, ORG_FALSE);
 }
 
 #endif
@@ -1692,9 +1732,366 @@ ORG_API void organya_context_set_mute(organya_context *context, size_t channel, 
     }
 }
 
+ORG_PRIVATE size_t organya_internal_context_find_last_note(organya_context *context, size_t channel, org_bool ignore_length, org_uint8 *out_volume, org_uint8 *out_pan)
+{
+    size_t i;
+    org_uint8 volume = ORG_DEFAULT_VOLUME;
+    org_uint8 pan = ORG_DEFAULT_PAN;
+    size_t event_count = context->song.channels[channel].event_count;
+    size_t play_index = -1;
+
+    for (i = 0; i < event_count; ++i)
+    {
+        organya_event *event = &context->song.channels[channel].event_list[i];
+
+        if (event->position >= context->position)
+        {
+            break;
+        }
+
+        if (event->volume != ORG_PROPERTY_NOT_USED)
+        {
+            volume = event->volume;
+        }
+
+        if (event->pan != ORG_PROPERTY_NOT_USED)
+        {
+            pan = event->pan;
+        }
+
+        if (event->pitch != ORG_PROPERTY_NOT_USED && (ignore_length || event->position + event->length >= context->position))
+        {
+            play_index = i;
+        }
+    }
+
+    *out_volume = volume;
+    *out_pan = pan;
+    return play_index;
+}
+
+ORG_PRIVATE void organya_internal_context_play_event(organya_context *context, size_t channel, organya_event *event, org_bool no_play)
+{
+    size_t i, j;
+
+    if (channel < ORG_MELODY_CHANNEL_COUNT)
+    {
+        if (event->pitch != ORG_PROPERTY_NOT_USED)
+        {
+            /* Stop old sound */
+            if (context->melody_index[channel].pitch != ORG_PROPERTY_NOT_USED && !no_play)
+            {
+                if (!context->song.channels[channel].pizzicato || context->compat_flags & ORG_COMPAT_CS_PIZZICATO_BUG)
+                {
+                    organya_internal_sound_play(
+                        &context->melody_index[channel].sounds[context->melody_index[channel].pitch / 12][context->melody_index[channel].alt],
+                        ORG_FALSE
+                    );
+                }
+
+                if (!(context->compat_flags & ORG_COMPAT_1_0_NOTE_CHANGE) || context->melody_index[channel].pitch == event->pitch)
+                {
+                    context->melody_index[channel].alt ^= 1;
+                }
+            }
+
+            /* Update channel status */
+            context->melody_index[channel].pitch = event->pitch;
+            context->melody_index[channel].ticks = event->length;
+
+            /* Set frequency */
+            for (i = 0; i < 8; ++i)
+            {
+                for (j = 0; j < 2; ++j)
+                {
+                    if (context->compat_flags & ORG_COMPAT_ALTERNATE_TUNING)
+                    {
+                        organya_internal_sound_set_frequency(
+                            &context->melody_index[channel].sounds[i][j],
+                            (organya_wave_size_table[i]
+                                    * organya_frequency_table_alternate[context->melody_index[channel].pitch % 12]
+                                    * (1 << i))
+                                    / 8
+                                    + (context->song.channels[channel].finetune - 1000)
+                        );
+                    }
+                    else
+                    {
+                        organya_internal_sound_set_frequency(
+                            &context->melody_index[channel].sounds[i][j],
+                            (organya_wave_size_table[i]
+                                    * organya_frequency_table[context->melody_index[channel].pitch % 12]
+                                    * (1 << i))
+                                    / 8
+                                    + (context->song.channels[channel].finetune - 1000)
+                        );
+                    }
+                }
+            }
+
+            /* Play sound */
+            if (!no_play)
+            {
+                organya_internal_sound_play(
+                    &context->melody_index[channel].sounds[context->melody_index[channel].pitch / 12][context->melody_index[channel].alt],
+                    !context->song.channels[channel].pizzicato || context->compat_flags & ORG_COMPAT_CS_PIZZICATO_BUG
+                );
+            }
+        }
+
+        if (event->volume != ORG_PROPERTY_NOT_USED)
+        {
+            /* Update channel status */
+            context->melody_index[channel].volume = event->volume;
+
+            /* Set playing volume */
+            if (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG)
+                    || context->melody_index[channel].index + 1 < context->song.channels[channel].event_count)
+            {
+                if (context->melody_index[channel].pitch != ORG_PROPERTY_NOT_USED)
+                {
+                    organya_internal_sound_set_volume(
+                        &context->melody_index[channel].sounds[context->melody_index[channel].pitch / 12][context->melody_index[channel].alt],
+                        ((context->melody_index[channel].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
+                    );
+                }
+                else if (context->compat_flags & ORG_COMPAT_1_0_VOLUME_BUG)
+                {
+                    org_uint8 index = context->melody_index[channel].pitch / 12;
+
+                    org_uint8 channel_index = channel + index / 8;
+                    org_uint8 sound_index = index % 8;
+
+                    if (channel_index < ORG_MELODY_CHANNEL_COUNT)
+                    {
+                        organya_internal_sound_set_volume(
+                            &context->melody_index[channel_index].sounds[sound_index][context->melody_index[channel].alt],
+                            ((context->melody_index[channel].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
+                        );
+                    }
+                }
+            }
+        }
+
+        if (event->pan != ORG_PROPERTY_NOT_USED)
+        {
+            /* Update channel status */
+            context->melody_index[channel].pan = event->pan;
+
+            /* Set playing pan */
+            if (context->melody_index[channel].pitch != ORG_PROPERTY_NOT_USED)
+            {
+                organya_internal_sound_set_pan(
+                    &context->melody_index[channel].sounds[context->melody_index[channel].pitch / 12][context->melody_index[channel].alt],
+                    (organya_panning_table[context->melody_index[channel].pan] - 0x100) * 10
+                );
+            }
+        }
+    }
+    else
+    {
+        size_t i = channel - ORG_MELODY_CHANNEL_COUNT;
+
+        if (event->pitch != ORG_PROPERTY_NOT_USED)
+        {
+            /* Stop old sound */
+            if (!no_play)
+            {
+                organya_internal_sound_stop(&context->percussion_index[i].sound);
+            }
+
+            /* Update channel status */
+            context->percussion_index[i].pitch = event->pitch;
+
+            /* Set frequency */
+            organya_internal_sound_set_frequency(
+                &context->percussion_index[i].sound,
+                (context->percussion_index[i].pitch * 800) + 100
+            );
+
+            /* Play new sound */
+            if (!no_play)
+            {
+                organya_internal_sound_play(&context->percussion_index[i].sound, ORG_FALSE);
+            }
+        }
+
+        if (event->volume != ORG_PROPERTY_NOT_USED)
+        {
+            /* Update channel status */
+            context->percussion_index[i].volume = event->volume;
+
+            /* Set playing volume */
+            if (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG)
+                    || context->percussion_index[i].index + 1 < context->song.channels[channel].event_count)
+            {
+                organya_internal_sound_set_volume(
+                    &context->percussion_index[i].sound,
+                    ((context->percussion_index[i].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
+                );
+            }
+        }
+
+        if (event->pan != ORG_PROPERTY_NOT_USED)
+        {
+            /* Update channel status */
+            context->percussion_index[i].pan = event->pan;
+
+            /* Set playing pan */
+            organya_internal_sound_set_pan(
+                &context->percussion_index[i].sound,
+                (organya_panning_table[context->percussion_index[i].pan] - 0x100) * 10
+            );
+        }
+    }
+}
+
+ORG_API void organya_context_pause(organya_context *context)
+{
+    size_t i, j;
+
+    if (context == NULL)
+    {
+        return;
+    }
+
+    context->paused = ORG_TRUE;
+
+    organya_context_seek(context, context->last_position);
+    context->samples_to_next_tick = 0.0;
+
+    if (!(context->compat_flags & ORG_COMPAT_LEGACY_PAUSING))
+    {
+        for (i = 0; i < ORG_MELODY_CHANNEL_COUNT; ++i)
+        {
+            for (j = 0; j < 8; ++j)
+            {
+                organya_internal_sound_stop(&context->melody_index[i].sounds[j][0]);
+                organya_internal_sound_stop(&context->melody_index[i].sounds[j][1]);
+            }
+
+            context->melody_index[i].pitch = ORG_PROPERTY_NOT_USED;
+        }
+
+        for (i = 0; i < ORG_PERCUSSION_CHANNEL_COUNT; ++i)
+        {
+            organya_internal_sound_stop(&context->percussion_index[i].sound);
+
+            context->percussion_index[i].pitch = ORG_PROPERTY_NOT_USED;
+        }
+    }
+    else
+    {
+        for (i = 0; i < ORG_MELODY_CHANNEL_COUNT; ++i)
+        {
+            if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED)
+            {
+                organya_internal_sound_play(
+                    &context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
+                    ORG_FALSE
+                );
+
+                context->melody_index[i].pitch = ORG_PROPERTY_NOT_USED;
+            }
+        }
+
+        if (context->compat_flags & ORG_COMPAT_CS_PERCUSSION)
+        {
+            return;
+        }
+
+        for (i = 0; i < ORG_PERCUSSION_CHANNEL_COUNT; ++i)
+        {
+            organya_internal_sound_stop(&context->percussion_index[i].sound);
+
+            context->percussion_index[i].pitch = ORG_PROPERTY_NOT_USED;
+        }
+    }
+}
+
+ORG_API void organya_context_resume(organya_context *context)
+{
+    size_t i;
+
+    if (context == NULL)
+    {
+        return;
+    }
+
+    context->paused = ORG_FALSE;
+
+    organya_context_seek(context, context->position);
+    context->samples_to_next_tick = 0.0;
+
+    if (!(context->compat_flags & ORG_COMPAT_LEGACY_PAUSING))
+    {
+        for (i = 0; i < ORG_CHANNEL_COUNT; ++i)
+        {
+            organya_event temp_event;
+            org_uint8 volume = ORG_DEFAULT_VOLUME;
+            org_uint8 pan = ORG_DEFAULT_PAN;
+            organya_event *event;
+            size_t played_ms;
+            double resume_pos;
+            organya_internal_sound *sound;
+            org_bool looping = i < ORG_MELODY_CHANNEL_COUNT && (!context->song.channels[i].pizzicato || context->compat_flags & ORG_COMPAT_CS_PIZZICATO_BUG);
+            size_t event_index = organya_internal_context_find_last_note(context, i, !looping, &volume, &pan);
+
+            if (event_index >= context->song.channels[i].event_count)
+            {
+                continue;
+            }
+
+            event = &context->song.channels[i].event_list[event_index];
+
+            /* Create a temporary event so it will use the volume/pan values we found */
+            temp_event = *event;
+            temp_event.volume = volume;
+            temp_event.pan = pan;
+
+            organya_internal_context_play_event(context, i, &temp_event, ORG_TRUE);
+
+            if (i < ORG_MELODY_CHANNEL_COUNT)
+            {
+                context->melody_index[i].pitch = event->pitch;
+                context->melody_index[i].ticks = event->length - (context->position - event->position);
+                context->melody_index[i].volume = event->volume;
+                context->melody_index[i].pan = event->pan;
+                sound = &context->melody_index[i].sounds[event->pitch / 12][context->melody_index[i].alt];
+            }
+            else
+            {
+                context->percussion_index[i - ORG_MELODY_CHANNEL_COUNT].pitch = event->pitch;
+                context->percussion_index[i - ORG_MELODY_CHANNEL_COUNT].volume = event->volume;
+                context->percussion_index[i - ORG_MELODY_CHANNEL_COUNT].pan = event->pan;
+                sound = &context->percussion_index[i - ORG_MELODY_CHANNEL_COUNT].sound;
+            }
+
+            played_ms = (context->position - event->position) * context->song.tempo_ms;
+            resume_pos = sound->position_increment * ((double)(played_ms * context->sample_rate) / 1000);
+
+            sound->playing = ORG_TRUE;
+            sound->looping = looping;
+            sound->silence_timer = 0;
+
+            sound->position = (org_uint32)resume_pos;
+            sound->sub_position = resume_pos - sound->position;
+
+            if (!looping && sound->position >= sound->sample_count)
+            {
+                sound->playing = ORG_FALSE;
+            }
+            else if (looping)
+            {
+                sound->position = sound->position % sound->sample_count;
+            }
+        }
+    }
+}
+
 ORG_API void organya_context_tick(organya_context *context)
 {
-    size_t i, j, k;
+    size_t i;
     org_uint32 lp;
     organya_event *event;
 
@@ -1713,114 +2110,7 @@ ORG_API void organya_context_tick(organya_context *context)
 
             if (context->position == event->position)
             {
-                if (event->pitch != ORG_PROPERTY_NOT_USED)
-                {
-                    /* Stop old sound */
-                    if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED)
-                    {
-                        if (!context->song.channels[i].pizzicato || context->compat_flags & ORG_COMPAT_CS_PIZZICATO_BUG)
-                        {
-                            organya_internal_sound_play(
-                                &context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
-                                ORG_FALSE
-                            );
-                        }
-
-                        if (!(context->compat_flags & ORG_COMPAT_1_0_NOTE_CHANGE) || context->melody_index[i].pitch == event->pitch)
-                        {
-                            context->melody_index[i].alt ^= 1;
-                        }
-                    }
-
-                    /* Update channel status */
-                    context->melody_index[i].pitch = event->pitch;
-                    context->melody_index[i].ticks = event->length;
-
-                    /* Set frequency */
-                    for (j = 0; j < 8; ++j)
-                    {
-                        for (k = 0; k < 2; ++k)
-                        {
-                            if (context->compat_flags & ORG_COMPAT_ALTERNATE_TUNING)
-                            {
-                                organya_internal_sound_set_frequency(
-                                    &context->melody_index[i].sounds[j][k],
-                                    (organya_wave_size_table[j]
-                                            * organya_frequency_table_alternate[context->melody_index[i].pitch % 12]
-                                            * (1 << j))
-                                            / 8
-                                            + (context->song.channels[i].finetune - 1000)
-                                );
-                            }
-                            else
-                            {
-                                organya_internal_sound_set_frequency(
-                                    &context->melody_index[i].sounds[j][k],
-                                    (organya_wave_size_table[j]
-                                            * organya_frequency_table[context->melody_index[i].pitch % 12]
-                                            * (1 << j))
-                                            / 8
-                                            + (context->song.channels[i].finetune - 1000)
-                                );
-                            }
-                        }
-                    }
-
-                    /* Play sound */
-                    organya_internal_sound_play(
-                        &context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
-                        !context->song.channels[i].pizzicato || context->compat_flags & ORG_COMPAT_CS_PIZZICATO_BUG
-                    );
-                }
-
-                if (event->volume != ORG_PROPERTY_NOT_USED)
-                {
-                    /* Update channel status */
-                    context->melody_index[i].volume = event->volume;
-
-                    /* Set playing volume */
-                    if (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG)
-                            || context->melody_index[i].index + 1 < context->song.channels[i].event_count)
-                    {
-                        if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED)
-                        {
-                            organya_internal_sound_set_volume(
-                                &context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
-                                ((context->melody_index[i].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
-                            );
-                        }
-                        else if (context->compat_flags & ORG_COMPAT_1_0_VOLUME_BUG)
-                        {
-                            org_uint8 index = context->melody_index[i].pitch / 12;
-
-                            org_uint8 channel_index = i + index / 8;
-                            org_uint8 sound_index = index % 8;
-
-                            if (channel_index < ORG_MELODY_CHANNEL_COUNT)
-                            {
-                                organya_internal_sound_set_volume(
-                                    &context->melody_index[channel_index].sounds[sound_index][context->melody_index[i].alt],
-                                    ((context->melody_index[i].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
-                                );
-                            }
-                        }
-                    }
-                }
-
-                if (event->pan != ORG_PROPERTY_NOT_USED)
-                {
-                    /* Update channel status */
-                    context->melody_index[i].pan = event->pan;
-
-                    /* Set playing pan */
-                    if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED)
-                    {
-                        organya_internal_sound_set_pan(
-                            &context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
-                            (organya_panning_table[context->melody_index[i].pan] - 0x100) * 10
-                        );
-                    }
-                }
+                organya_internal_context_play_event(context, i, event, ORG_FALSE);
 
                 ++context->melody_index[i].index;
             }
@@ -1856,51 +2146,7 @@ ORG_API void organya_context_tick(organya_context *context)
 
             if (context->position == event->position)
             {
-                if (event->pitch != ORG_PROPERTY_NOT_USED)
-                {
-                    /* Stop old sound */
-                    organya_internal_sound_stop(&context->percussion_index[i].sound);
-
-                    /* Update channel status */
-                    context->percussion_index[i].pitch = event->pitch;
-
-                    /* Set frequency */
-                    organya_internal_sound_set_frequency(
-                        &context->percussion_index[i].sound,
-                        (context->percussion_index[i].pitch * 800) + 100
-                    );
-
-                    /* Play new sound */
-                    organya_internal_sound_play(&context->percussion_index[i].sound, ORG_FALSE);
-                }
-
-                if (event->volume != ORG_PROPERTY_NOT_USED)
-                {
-                    /* Update channel status */
-                    context->percussion_index[i].volume = event->volume;
-
-                    /* Set playing volume */
-                    if (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG)
-                            || context->percussion_index[i].index + 1 < context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].event_count)
-                    {
-                        organya_internal_sound_set_volume(
-                            &context->percussion_index[i].sound,
-                            ((context->percussion_index[i].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
-                        );
-                    }
-                }
-
-                if (event->pan != ORG_PROPERTY_NOT_USED)
-                {
-                    /* Update channel status */
-                    context->percussion_index[i].pan = event->pan;
-
-                    /* Set playing pan */
-                    organya_internal_sound_set_pan(
-                        &context->percussion_index[i].sound,
-                        (organya_panning_table[context->percussion_index[i].pan] - 0x100) * 10
-                    );
-                }
+                organya_internal_context_play_event(context, ORG_MELODY_CHANNEL_COUNT + i, event, ORG_FALSE);
 
                 ++context->percussion_index[i].index;
             }
@@ -1952,8 +2198,14 @@ ORG_API size_t organya_context_generate_samples(organya_context *context, void *
         {
             for (j = 0; j < 8; ++j)
             {
-                organya_internal_sound_generate_samples(&context->melody_index[i].sounds[j][0], buffer, next_samples);
-                organya_internal_sound_generate_samples(&context->melody_index[i].sounds[j][1], buffer, next_samples);
+                if (context->melody_index[i].sounds[j][0].playing || context->melody_index[i].sounds[j][0].silence_timer > 0)
+                {
+                    organya_internal_sound_generate_samples(&context->melody_index[i].sounds[j][0], buffer, next_samples);
+                }
+                if (context->melody_index[i].sounds[j][1].playing || context->melody_index[i].sounds[j][1].silence_timer > 0)
+                {
+                    organya_internal_sound_generate_samples(&context->melody_index[i].sounds[j][1], buffer, next_samples);
+                }
             }
         }
 
@@ -1965,7 +2217,10 @@ ORG_API size_t organya_context_generate_samples(organya_context *context, void *
                 break;
             }
 
-            organya_internal_sound_generate_samples(&context->percussion_index[i].sound, buffer, next_samples);
+            if (context->percussion_index[i].sound.playing || context->percussion_index[i].sound.silence_timer > 0)
+            {
+                organya_internal_sound_generate_samples(&context->percussion_index[i].sound, buffer, next_samples);
+            }
         }
 
         /* Output the final samples */

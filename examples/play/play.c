@@ -24,9 +24,9 @@ int main(int argc, char *argv[])
     ma_device_config config;
 
     /* Check if args are invalid */
-    if (argc <= 2)
+    if (argc < 2)
     {
-        printf("Usage: %s <song path> <soundbank path>\n", argv[0]);
+        printf("Usage: %s <song path> [soundbank path]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -60,9 +60,9 @@ int main(int argc, char *argv[])
     organya_context_set_volume(&ctx, 1);
 
     /* Load soundbank from file */
-    printf("Loading soundbank %s\n", argv[2]);
+    printf("Loading soundbank %s\n", argc < 3 ? "./default.wdb" : argv[2]);
 
-    if (organya_context_load_soundbank_file(&ctx, argv[2]) != ORG_RESULT_SUCCESS)
+    if (organya_context_load_soundbank_file(&ctx, argc < 3 ? "./default.wdb" :argv[2]) != ORG_RESULT_SUCCESS)
     {
         puts("Error!");
         ma_device_uninit(&device);

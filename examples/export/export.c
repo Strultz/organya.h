@@ -36,9 +36,9 @@ int main(int argc, char *argv[])
     float buffer[128 * 2];
 
     /* Check if args are invalid */
-    if (argc <= 2)
+    if (argc < 2)
     {
-        printf("Usage: %s <song path> <soundbank path> [output path]\n", argv[0]);
+        printf("Usage: %s <song path> [soundbank path] [output path]\n", argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -55,9 +55,9 @@ int main(int argc, char *argv[])
     organya_context_set_volume(&ctx, 1);
 
     /* Load soundbank from file */
-    printf("Loading soundbank %s\n", argv[2]);
+    printf("Loading soundbank %s\n", argc < 3 ? "./default.wdb" : argv[2]);
 
-    if (organya_context_load_soundbank_file(&ctx, argv[2]) != ORG_RESULT_SUCCESS)
+    if (organya_context_load_soundbank_file(&ctx, argc < 3 ? "./default.wdb" : argv[2]) != ORG_RESULT_SUCCESS)
     {
         puts("Error!");
         organya_context_deinit(&ctx);
@@ -78,9 +78,9 @@ int main(int argc, char *argv[])
     num_samples = ceil_double_u32(((double)ctx.song.tempo_ms * (double)SAMPLE_RATE / 1000.0) * ctx.song.repeat_end);
     stream_size = sizeof(float) * num_samples * 2;
 
-    printf("Exporting to file %s\n", argc > 3 ? argv[3] : "out.wav");
+    printf("Exporting to file %s\n", argc < 4 ? "./out.wav" : argv[3]);
 
-    file = fopen(argc > 3 ? argv[3] : "out.wav", "wb");
+    file = fopen(argc < 4 ? "./out.wav" : argv[3], "wb");
     if (file == NULL)
     {
         puts("Error!");
