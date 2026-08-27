@@ -450,7 +450,7 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
 ORG_API void organya_context_set_output_format(organya_context *context, organya_output_format output_format, org_bool dither_output);
 
 /**
- * Sets the compatibilty flags, which are various options designed to enable compatibilty with other Organya players.
+ * Sets the compatibilty flags, which are various options designed to allow compatibilty with other Organya players.
  *
  * @param context Pointer to the organya_context structure
  * @param flags Flags to use, ORed together
@@ -1547,6 +1547,8 @@ ORG_API void organya_context_set_output_format(organya_context *context, organya
 
 ORG_API organya_result organya_context_set_compat_flags(organya_context *context, org_uint32 flags)
 {
+    organya_result result;
+
     if (context == NULL)
     {
         return ORG_RESULT_INVALID_ARGS;
@@ -1557,8 +1559,18 @@ ORG_API organya_result organya_context_set_compat_flags(organya_context *context
     /* Update all sounds data */
     organya_internal_context_set_sound_settings(context);
 
-    /* Create and load instrument data */
-    return organya_internal_context_load_instruments(context, ORG_TRUE);
+    /* Create and load instrument data if there is some loaded already
+     * XXX: Weird and cryptic check */
+    if (context->melody_index[0].sounds[0][0].data != NULL)
+    {
+        result = organya_internal_context_load_instruments(context, ORG_TRUE);
+        if (result != ORG_RESULT_SUCCESS)
+        {
+            return result;
+        }
+    }
+
+    return ORG_RESULT_SUCCESS;
 }
 
 ORG_API organya_result organya_context_set_song(organya_context *context, organya_song *song)
@@ -2184,14 +2196,17 @@ ORG_API size_t organya_context_generate_samples(organya_context *context, void *
     /* Generate samples */
     while (samples_done < sample_count)
     {
-        size_t tick_time = (size_t)ceil(context->samples_to_next_tick);
+        size_t tick_time = context->paused ? ORG_SCRATCH_BUFFER_LENGTH / 2 : (size_t)ceil(context->samples_to_next_tick);
         size_t next_samples = ORG_MIN(sample_count - samples_done, ORG_MIN(tick_time, ORG_SCRATCH_BUFFER_LENGTH / 2));
 
-        if (context->samples_to_next_tick <= 0)
+        if (!context->paused)
         {
-            organya_context_tick(context);
+            if (context->samples_to_next_tick <= 0)
+            {
+                organya_context_tick(context);
+            }
+            context->samples_to_next_tick -= next_samples;
         }
-        context->samples_to_next_tick -= next_samples;
 
         /* Generate melody samples */
         for (i = 0; i < ORG_MELODY_CHANNEL_COUNT; ++i)
