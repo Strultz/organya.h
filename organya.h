@@ -527,6 +527,7 @@ ORG_API void organya_context_set_mute(organya_context *context, size_t channel, 
 
 /**
  * Toggle Organya fadeout, which will decrease the song's volume over time.
+ * This setting will reset when a new song is loaded.
  *
  * @param context Pointer to the organya_context structure
  * @param fadeout If fadeout should be enabled or disabled
@@ -2055,10 +2056,13 @@ ORG_API void organya_context_pause(organya_context *context)
         {
             if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED)
             {
-                organya_internal_sound_play(
-                    &context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
-                    ORG_FALSE
-                );
+                if (!context->song.channels[i].pizzicato || context->compat_flags & ORG_COMPAT_CS_PIZZICATO_BUG)
+                {
+                    organya_internal_sound_play(
+                        &context->melody_index[i].sounds[context->melody_index[i].pitch / 12][context->melody_index[i].alt],
+                        ORG_FALSE
+                    );
+                }
 
                 context->melody_index[i].pitch = ORG_PROPERTY_NOT_USED;
             }
