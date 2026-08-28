@@ -377,8 +377,22 @@ typedef struct organya_context
  * @param context Pointer to the organya_context structure
  *
  * @returns Success/failure status; see organya_result enum for possible values
+ *
+ * @see organya_context_init_ex
 **/
 ORG_API organya_result organya_context_init(organya_context *context);
+
+/**
+ * Initializes an Organya context.
+ *
+ * @param context Pointer to the organya_context structure
+ * @param flags Compatibility flags, ORed together
+ *
+ * @returns Success/failure status; see organya_result enum for possible values
+ *
+ * @see organya_compat_flags
+**/
+ORG_API organya_result organya_context_init_ex(organya_context *context, org_uint32 flags);
 
 /**
  * Deinitializes an Organya context.
@@ -448,18 +462,6 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
  * @see organya_output_format
 **/
 ORG_API void organya_context_set_output_format(organya_context *context, organya_output_format output_format, org_bool dither_output);
-
-/**
- * Sets the compatibilty flags, which are various options designed to allow compatibilty with other Organya players.
- *
- * @param context Pointer to the organya_context structure
- * @param flags Flags to use, ORed together
- *
- * @returns Success/failure status; see organya_result enum for possible values
- *
- * @see organya_compat_flags
-**/
-ORG_API organya_result organya_context_set_compat_flags(organya_context *context, org_uint32 flags);
 
 /**
  * Set the song data this structure should play back.
@@ -905,15 +907,15 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
     /* Read the OM3MD segment. This is OrgMaker 3's custom metadata block */
     if (memcmp(&song_data[offset], "OM3MD", 5) == 0)
     {
-        org_uint8 version;
+        org_uint8 md_version;
         char *comments;
         size_t comments_length;
 
         /* Read ascii version number */
-        version = song_data[offset + 5] - '0';
+        md_version = song_data[offset + 5] - '0';
         offset += 6;
 
-        if (version < 1 || version > 2) /* OM3MD1, OM3MD2 */
+        if (md_version < 1 || md_version > 2) /* OM3MD1, OM3MD2 */
         {
             /* We don't need to fail, just ignore the metadata */
             return ORG_RESULT_SUCCESS;
@@ -959,12 +961,12 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
             song->comments.text = comments;
         }
 
-        if (version < 2 || offset + 1 > data_length)
+        if (md_version < 2 || offset + 1 > data_length)
         {
             return ORG_RESULT_SUCCESS;
         }
 
-        song->comments.open_comments = ORG_READ_8_LE(&song_data[offset]); offset++;
+        song->comments.open_comments = ORG_READ_8_LE(&song_data[offset]); ++offset;
 
         /* TODO: We don't read any additional chunks, such as DEFS or TCOL */
     }
@@ -1281,6 +1283,11 @@ ORG_PRIVATE size_t organya_internal_context_format_samples(organya_context *cont
 
 ORG_API organya_result organya_context_init(organya_context *context)
 {
+    return organya_context_init_ex(context, 0);
+}
+
+ORG_API organya_result organya_context_init_ex(organya_context *context, org_uint32 flags)
+{
     organya_result result;
     size_t i;
 
@@ -1308,16 +1315,16 @@ ORG_API organya_result organya_context_init(organya_context *context)
     context->output_format = ORG_OUTPUT_FORMAT_F32;
     context->dither_output = ORG_FALSE;
     context->dither_rng = 1;
-    context->compat_flags = 0;
+    context->compat_flags = flags;
 
     /* Should be 4ms */
-    context->volume_ramp = (org_uint32)(context->sample_rate * 0.004F);
+    context->volume_ramp = (flags & ORG_COMPAT_NO_VOLUME_RAMP) ? 1 : (org_uint32)(context->sample_rate * 0.004F);
 
     /* Initialize melody channel status */
     for (i = 0; i < ORG_MELODY_CHANNEL_COUNT; ++i)
     {
         context->melody_index[i].pitch = ORG_PROPERTY_NOT_USED;
-        context->melody_index[i].volume = ORG_DEFAULT_VOLUME;
+        context->melody_index[i].volume = (flags & ORG_COMPAT_CS_VOLUME_BUG) ? 0 : ORG_DEFAULT_VOLUME;
         context->melody_index[i].pan = ORG_DEFAULT_PAN;
 
         context->melody_index[i].index = 0;
@@ -1330,7 +1337,7 @@ ORG_API organya_result organya_context_init(organya_context *context)
     for (i = 0; i < ORG_PERCUSSION_CHANNEL_COUNT; ++i)
     {
         context->percussion_index[i].pitch = ORG_PROPERTY_NOT_USED;
-        context->percussion_index[i].volume = ORG_DEFAULT_VOLUME;
+        context->percussion_index[i].volume = (flags & ORG_COMPAT_CS_VOLUME_BUG) ? 0 : ORG_DEFAULT_VOLUME;
         context->percussion_index[i].pan = ORG_DEFAULT_PAN;
 
         context->percussion_index[i].index = 0;
@@ -1545,34 +1552,6 @@ ORG_API void organya_context_set_output_format(organya_context *context, organya
     context->dither_output = dither_output;
 }
 
-ORG_API organya_result organya_context_set_compat_flags(organya_context *context, org_uint32 flags)
-{
-    organya_result result;
-
-    if (context == NULL)
-    {
-        return ORG_RESULT_INVALID_ARGS;
-    }
-
-    context->compat_flags = flags;
-
-    /* Update all sounds data */
-    organya_internal_context_set_sound_settings(context);
-
-    /* Create and load instrument data if there is some loaded already
-     * XXX: Weird and cryptic check */
-    if (context->melody_index[0].sounds[0][0].data != NULL)
-    {
-        result = organya_internal_context_load_instruments(context, ORG_TRUE);
-        if (result != ORG_RESULT_SUCCESS)
-        {
-            return result;
-        }
-    }
-
-    return ORG_RESULT_SUCCESS;
-}
-
 ORG_API organya_result organya_context_set_song(organya_context *context, organya_song *song)
 {
     organya_result result;
@@ -1591,6 +1570,15 @@ ORG_API organya_result organya_context_set_song(organya_context *context, organy
     /* Seek to start */
     organya_context_seek(context, 0);
     context->paused = ORG_FALSE;
+
+    if (context->compat_flags & ORG_COMPAT_LEGACY_PAUSING)
+    {
+        context->samples_to_next_tick = (double)context->sample_rate * (double)context->song.tempo_ms / 1000.0;
+    }
+    else
+    {
+        context->samples_to_next_tick = 0.0;
+    }
 
     /* Create and load instrument data */
     return organya_internal_context_load_instruments(context, ORG_FALSE);
@@ -1614,6 +1602,15 @@ ORG_API organya_result organya_context_read_song(organya_context *context, const
     /* Seek to start */
     organya_context_seek(context, 0);
     context->paused = ORG_FALSE;
+
+    if (context->compat_flags & ORG_COMPAT_LEGACY_PAUSING)
+    {
+        context->samples_to_next_tick = (double)context->sample_rate * (double)context->song.tempo_ms / 1000.0;
+    }
+    else
+    {
+        context->samples_to_next_tick = 0.0;
+    }
 
     /* Create and load instrument data */
     return organya_internal_context_load_instruments(context, ORG_FALSE);
@@ -1639,6 +1636,15 @@ ORG_API organya_result organya_context_load_song_file(organya_context *context, 
     /* Seek to start */
     organya_context_seek(context, 0);
     context->paused = ORG_FALSE;
+
+    if (context->compat_flags & ORG_COMPAT_LEGACY_PAUSING)
+    {
+        context->samples_to_next_tick = (double)context->sample_rate * (double)context->song.tempo_ms / 1000.0;
+    }
+    else
+    {
+        context->samples_to_next_tick = 0.0;
+    }
 
     /* Create and load instrument data */
     return organya_internal_context_load_instruments(context, ORG_FALSE);
@@ -1782,6 +1788,32 @@ ORG_PRIVATE size_t organya_internal_context_find_last_note(organya_context *cont
     return play_index;
 }
 
+ORG_PRIVATE void organya_internal_context_set_melody_volume(organya_context *context, size_t channel)
+{
+    if (context->melody_index[channel].pitch != ORG_PROPERTY_NOT_USED)
+    {
+        organya_internal_sound_set_volume(
+            &context->melody_index[channel].sounds[context->melody_index[channel].pitch / 12][context->melody_index[channel].alt],
+            ((context->melody_index[channel].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
+        );
+    }
+    else if (context->compat_flags & ORG_COMPAT_1_0_VOLUME_BUG)
+    {
+        org_uint8 index = context->melody_index[channel].pitch / 12;
+
+        org_uint8 channel_index = channel + index / 8;
+        org_uint8 sound_index = index % 8;
+
+        if (channel_index < ORG_MELODY_CHANNEL_COUNT)
+        {
+            organya_internal_sound_set_volume(
+                &context->melody_index[channel_index].sounds[sound_index][context->melody_index[channel].alt],
+                ((context->melody_index[channel].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
+            );
+        }
+    }
+}
+
 ORG_PRIVATE void organya_internal_context_play_event(organya_context *context, size_t channel, organya_event *event, org_bool no_play)
 {
     size_t i, j;
@@ -1857,31 +1889,9 @@ ORG_PRIVATE void organya_internal_context_play_event(organya_context *context, s
             context->melody_index[channel].volume = event->volume;
 
             /* Set playing volume */
-            if (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG)
-                    || context->melody_index[channel].index + 1 < context->song.channels[channel].event_count)
+            if (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG) || no_play)
             {
-                if (context->melody_index[channel].pitch != ORG_PROPERTY_NOT_USED)
-                {
-                    organya_internal_sound_set_volume(
-                        &context->melody_index[channel].sounds[context->melody_index[channel].pitch / 12][context->melody_index[channel].alt],
-                        ((context->melody_index[channel].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
-                    );
-                }
-                else if (context->compat_flags & ORG_COMPAT_1_0_VOLUME_BUG)
-                {
-                    org_uint8 index = context->melody_index[channel].pitch / 12;
-
-                    org_uint8 channel_index = channel + index / 8;
-                    org_uint8 sound_index = index % 8;
-
-                    if (channel_index < ORG_MELODY_CHANNEL_COUNT)
-                    {
-                        organya_internal_sound_set_volume(
-                            &context->melody_index[channel_index].sounds[sound_index][context->melody_index[channel].alt],
-                            ((context->melody_index[channel].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
-                        );
-                    }
-                }
+                organya_internal_context_set_melody_volume(context, channel);
             }
         }
 
@@ -1934,8 +1944,7 @@ ORG_PRIVATE void organya_internal_context_play_event(organya_context *context, s
             context->percussion_index[i].volume = event->volume;
 
             /* Set playing volume */
-            if (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG)
-                    || context->percussion_index[i].index + 1 < context->song.channels[channel].event_count)
+            if (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG) || no_play)
             {
                 organya_internal_sound_set_volume(
                     &context->percussion_index[i].sound,
@@ -1970,7 +1979,6 @@ ORG_API void organya_context_pause(organya_context *context)
     context->paused = ORG_TRUE;
 
     organya_context_seek(context, context->last_position);
-    context->samples_to_next_tick = 0.0;
 
     if (!(context->compat_flags & ORG_COMPAT_LEGACY_PAUSING))
     {
@@ -2033,10 +2041,11 @@ ORG_API void organya_context_resume(organya_context *context)
     context->paused = ORG_FALSE;
 
     organya_context_seek(context, context->position);
-    context->samples_to_next_tick = 0.0;
 
     if (!(context->compat_flags & ORG_COMPAT_LEGACY_PAUSING))
     {
+        context->samples_to_next_tick = 0.0;
+
         for (i = 0; i < ORG_CHANNEL_COUNT; ++i)
         {
             organya_event temp_event;
@@ -2099,6 +2108,10 @@ ORG_API void organya_context_resume(organya_context *context)
             }
         }
     }
+    else
+    {
+        context->samples_to_next_tick = (double)context->sample_rate * (double)context->song.tempo_ms / 1000.0;
+    }
 }
 
 ORG_API void organya_context_tick(organya_context *context)
@@ -2131,7 +2144,7 @@ ORG_API void organya_context_tick(organya_context *context)
         /* Tick note length */
         if (context->melody_index[i].ticks == 0)
         {
-            if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED && !context->song.channels[i].pizzicato)
+            if (context->melody_index[i].pitch != ORG_PROPERTY_NOT_USED && (!context->song.channels[i].pizzicato || context->compat_flags & ORG_COMPAT_CS_PIZZICATO_BUG))
             {
                 /* Stop old sound */
                 organya_internal_sound_play(
@@ -2145,6 +2158,11 @@ ORG_API void organya_context_tick(organya_context *context)
         else
         {
             --context->melody_index[i].ticks;
+        }
+
+        if (context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG && context->melody_index[i].index < context->song.channels[i].event_count)
+        {
+            organya_internal_context_set_melody_volume(context, i);
         }
     }
 
@@ -2162,6 +2180,14 @@ ORG_API void organya_context_tick(organya_context *context)
 
                 ++context->percussion_index[i].index;
             }
+        }
+
+        if (context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG && context->percussion_index[i].index < context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].event_count)
+        {
+            organya_internal_sound_set_volume(
+                &context->percussion_index[i].sound,
+                ((context->percussion_index[i].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
+            );
         }
     }
 

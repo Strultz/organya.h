@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
     org_uint32 num_samples;
     org_uint32 stream_size;
     org_uint32 to_do;
-    float buffer[128 * 2];
+    float buffer[0x100 * 2];
 
     /* Check if args are invalid */
     if (argc < 2)
@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
     /* Generate samples */
     while (num_samples > 0)
     {
-        to_do = num_samples < 128 ? num_samples : 128;
+        to_do = num_samples < 0x100 ? num_samples : 0x100;
         organya_context_generate_samples(&ctx, buffer, to_do);
         fwrite(buffer, sizeof(float), to_do * 2, file);
         num_samples -= to_do;
