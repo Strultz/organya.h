@@ -361,6 +361,8 @@ typedef struct organya_context
     org_bool dither_output;
     org_uint32 dither_rng;
     org_uint32 compat_flags;
+    org_int16 org_volume;
+    org_bool org_fadeout;
 
     /* For soundbanks: */
     org_bool has_sounds;
@@ -522,6 +524,14 @@ ORG_API void organya_context_seek(organya_context *context, org_int32 position);
  * @param mute If the channel should be muted
 **/
 ORG_API void organya_context_set_mute(organya_context *context, size_t channel, org_bool mute);
+
+/**
+ * Toggle Organya fadeout, which will decrease the song's volume over time.
+ *
+ * @param context Pointer to the organya_context structure
+ * @param fadeout If fadeout should be enabled or disabled
+**/
+ORG_API void organya_context_set_fadeout(organya_context *context, org_bool fadeout);
 
 /**
  * Pauses the active song playback.
@@ -1319,6 +1329,7 @@ ORG_API organya_result organya_context_init_ex(organya_context *context, org_uin
     context->position = 0;
     context->last_position = 0;
     context->samples_to_next_tick = 0.0;
+    context->org_volume = (flags & ORG_COMPAT_LEGACY_VOLUME) ? 0x7F : 100;
 
     context->sample_rate = 44100;
     context->volume = 1;
@@ -1594,6 +1605,9 @@ ORG_API organya_result organya_context_set_song(organya_context *context, organy
         context->samples_to_next_tick = 0.0;
     }
 
+    context->org_volume = (context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 0x7F : 100;
+    context->org_fadeout = ORG_FALSE;
+
     /* Create and load instrument data */
     return organya_internal_context_load_instruments(context, ORG_FALSE);
 }
@@ -1625,6 +1639,9 @@ ORG_API organya_result organya_context_read_song(organya_context *context, const
     {
         context->samples_to_next_tick = 0.0;
     }
+
+    context->org_volume = (context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 0x7F : 100;
+    context->org_fadeout = ORG_FALSE;
 
     /* Create and load instrument data */
     return organya_internal_context_load_instruments(context, ORG_FALSE);
@@ -1659,6 +1676,9 @@ ORG_API organya_result organya_context_load_song_file(organya_context *context, 
     {
         context->samples_to_next_tick = 0.0;
     }
+
+    context->org_volume = (context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 0x7F : 100;
+    context->org_fadeout = ORG_FALSE;
 
     /* Create and load instrument data */
     return organya_internal_context_load_instruments(context, ORG_FALSE);
@@ -1764,6 +1784,21 @@ ORG_API void organya_context_set_mute(organya_context *context, size_t channel, 
     }
 }
 
+ORG_API void organya_context_set_fadeout(organya_context *context, org_bool fadeout)
+{
+    if (context == NULL)
+    {
+        return;
+    }
+
+    context->org_fadeout = fadeout;
+
+    if (!fadeout)
+    {
+        context->org_volume = (context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 0x7F : 100;
+    }
+}
+
 ORG_PRIVATE size_t organya_internal_context_find_last_note(organya_context *context, size_t channel, org_bool ignore_length, org_uint8 *out_volume, org_uint8 *out_pan)
 {
     size_t i;
@@ -1808,7 +1843,7 @@ ORG_PRIVATE void organya_internal_context_set_melody_volume(organya_context *con
     {
         organya_internal_sound_set_volume(
             &context->melody_index[channel].sounds[context->melody_index[channel].pitch / 12][context->melody_index[channel].alt],
-            ((context->melody_index[channel].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
+            ((context->melody_index[channel].volume * context->org_volume / 0x7F) - 0xFF) * 8
         );
     }
     else if (context->compat_flags & ORG_COMPAT_1_0_VOLUME_BUG)
@@ -1822,7 +1857,7 @@ ORG_PRIVATE void organya_internal_context_set_melody_volume(organya_context *con
         {
             organya_internal_sound_set_volume(
                 &context->melody_index[channel_index].sounds[sound_index][context->melody_index[channel].alt],
-                ((context->melody_index[channel].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
+                ((context->melody_index[channel].volume * context->org_volume / 0x7F) - 0xFF) * 8
             );
         }
     }
@@ -1962,7 +1997,7 @@ ORG_PRIVATE void organya_internal_context_play_event(organya_context *context, s
             {
                 organya_internal_sound_set_volume(
                     &context->percussion_index[i].sound,
-                    ((context->percussion_index[i].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
+                    ((context->percussion_index[i].volume * context->org_volume / 0x7F) - 0xFF) * 8
                 );
             }
         }
@@ -2134,6 +2169,15 @@ ORG_API void organya_context_tick(organya_context *context)
     org_uint32 lp;
     organya_event *event;
 
+    if (context->org_fadeout && context->org_volume > 0)
+    {
+        context->org_volume -= 2;
+        if (context->org_volume < 0)
+        {
+            context->org_volume = 0;
+        }
+    }
+
     if (context == NULL)
     {
         return;
@@ -2174,7 +2218,8 @@ ORG_API void organya_context_tick(organya_context *context)
             --context->melody_index[i].ticks;
         }
 
-        if (context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG && context->melody_index[i].index < context->song.channels[i].event_count)
+        if ((context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG && context->melody_index[i].index < context->song.channels[i].event_count)
+            || (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG) && context->org_fadeout))
         {
             organya_internal_context_set_melody_volume(context, i);
         }
@@ -2196,11 +2241,12 @@ ORG_API void organya_context_tick(organya_context *context)
             }
         }
 
-        if (context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG && context->percussion_index[i].index < context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].event_count)
+        if ((context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG && context->percussion_index[i].index < context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].event_count)
+            || (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG) && context->org_fadeout))
         {
             organya_internal_sound_set_volume(
                 &context->percussion_index[i].sound,
-                ((context->percussion_index[i].volume * 100 / ((context->compat_flags & ORG_COMPAT_LEGACY_VOLUME) ? 100 : 0x7F)) - 0xFF) * 8
+                ((context->percussion_index[i].volume * context->org_volume / 0x7F) - 0xFF) * 8
             );
         }
     }
