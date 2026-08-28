@@ -363,6 +363,7 @@ typedef struct organya_context
     org_uint32 compat_flags;
 
     /* For soundbanks: */
+    org_bool has_sounds;
     org_uint8 melody_wave_data[ORG_WAVETABLE_COUNT * 0x100];
     struct
     {
@@ -824,6 +825,12 @@ ORG_API organya_result organya_song_read(organya_song *song, const org_uint8 *so
     song->repeat_start = ORG_READ_32_LE(&song_data[offset]); offset += 4;
     song->repeat_end = ORG_READ_32_LE(&song_data[offset]); offset += 4;
 
+    if (song->tempo_ms == 0)
+    {
+        /* Tempo of 0 is invalid */
+        song->tempo_ms = 1;
+    }
+
     /* Read channel headers */
     for (i = 0; i < ORG_CHANNEL_COUNT; ++i)
     {
@@ -1059,6 +1066,11 @@ ORG_PRIVATE organya_result organya_internal_context_load_instruments(organya_con
     size_t wave_index;
 
     const org_uint8 *percussion_data;
+
+    if (!context->has_sounds)
+    {
+        return ORG_RESULT_ERROR;
+    }
 
     for (i = 0; i < ORG_MELODY_CHANNEL_COUNT; ++i)
     {
@@ -1347,6 +1359,7 @@ ORG_API organya_result organya_context_init_ex(organya_context *context, org_uin
     memset(context->melody_wave_data, 0, sizeof(context->melody_wave_data));
     memset(context->percussion_wave_data, 0, sizeof(context->percussion_wave_data));
 
+    context->has_sounds = ORG_FALSE;
     return ORG_RESULT_SUCCESS;
 }
 
@@ -1427,7 +1440,8 @@ ORG_API organya_result organya_context_read_soundbank(organya_context *context, 
         offset += context->percussion_wave_data[i].length;
     }
 
-    return ORG_RESULT_SUCCESS;
+    context->has_sounds = ORG_TRUE;
+    return organya_internal_context_load_instruments(context, ORG_TRUE);
 }
 
 #ifndef ORG_NO_STDIO
