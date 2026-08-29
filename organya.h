@@ -364,7 +364,7 @@ typedef struct organya_context
     org_int16 org_volume;
     org_bool org_fadeout;
 
-    /* For soundbanks: */
+    /* For soundbanks */
     org_bool has_sounds;
     org_uint8 melody_wave_data[ORG_WAVETABLE_COUNT * 0x100];
     struct
@@ -467,7 +467,7 @@ ORG_API void organya_context_set_interpolation(organya_context *context, organya
 ORG_API void organya_context_set_output_format(organya_context *context, organya_output_format output_format, org_bool dither_output);
 
 /**
- * Set the song data this structure should play back.
+ * Sets the song data this structure should play back.
  *
  * @param context Pointer to the organya_context structure
  * @param song Pointer to the organya_song structure. This will be deep-copied, so modifying it after will not affect the context.
@@ -509,7 +509,7 @@ ORG_API organya_result organya_context_load_song_file(organya_context *context, 
 ORG_API void organya_context_unload_song(organya_context *context);
 
 /**
- * Set current song position.
+ * Sets the current song position.
  *
  * @param context Pointer to the organya_context structure
  * @param position Position to seek to
@@ -517,7 +517,7 @@ ORG_API void organya_context_unload_song(organya_context *context);
 ORG_API void organya_context_seek(organya_context *context, org_int32 position);
 
 /**
- * Set if a channel is muted.
+ * Sets if a channel is muted.
  *
  * @param context Pointer to the organya_context structure
  * @param channel Index of channel to mute
@@ -526,7 +526,7 @@ ORG_API void organya_context_seek(organya_context *context, org_int32 position);
 ORG_API void organya_context_set_mute(organya_context *context, size_t channel, org_bool mute);
 
 /**
- * Toggle Organya fadeout, which will decrease the song's volume over time.
+ * Toggles Organya fadeout, which will decrease the song's volume over time.
  * This setting will reset when a new song is loaded.
  *
  * @param context Pointer to the organya_context structure
@@ -549,7 +549,7 @@ ORG_API void organya_context_pause(organya_context *context);
 ORG_API void organya_context_resume(organya_context *context);
 
 /**
- * Generate samples of Organya playback.
+ * Renders samples of Organya playback.
  * This function will write interleaved stereo samples to output in 32-bit floating point PCM format.
  *
  * @param context Pointer to the organya_context structure
@@ -2191,7 +2191,7 @@ ORG_API void organya_context_tick(organya_context *context)
     for (i = 0; i < ORG_MELODY_CHANNEL_COUNT; ++i)
     {
         /* Is there another event to handle? */
-        if (context->melody_index[i].index < context->song.channels[i].event_count && !context->melody_index[i].muted)
+        if (context->melody_index[i].index < context->song.channels[i].event_count && !(context->compat_flags & ORG_COMPAT_LEGACY_PAUSING && context->melody_index[i].muted))
         {
             event = &context->song.channels[i].event_list[context->melody_index[i].index];
 
@@ -2223,7 +2223,7 @@ ORG_API void organya_context_tick(organya_context *context)
         }
 
         if ((context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG && context->melody_index[i].index < context->song.channels[i].event_count)
-            || (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG) && context->org_fadeout))
+                || (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG) && context->org_fadeout))
         {
             organya_internal_context_set_melody_volume(context, i);
         }
@@ -2233,7 +2233,8 @@ ORG_API void organya_context_tick(organya_context *context)
     for (i = 0; i < ORG_PERCUSSION_CHANNEL_COUNT; ++i)
     {
         /* Is there another event to handle? */
-        if (context->percussion_index[i].index < context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].event_count && !context->percussion_index[i].muted)
+        if (context->percussion_index[i].index < context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].event_count
+                && !(context->compat_flags & ORG_COMPAT_LEGACY_PAUSING && context->percussion_index[i].muted))
         {
             event = &context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].event_list[context->percussion_index[i].index];
 
@@ -2246,7 +2247,7 @@ ORG_API void organya_context_tick(organya_context *context)
         }
 
         if ((context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG && context->percussion_index[i].index < context->song.channels[ORG_MELODY_CHANNEL_COUNT + i].event_count)
-            || (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG) && context->org_fadeout))
+                || (!(context->compat_flags & ORG_COMPAT_CS_VOLUME_BUG) && context->org_fadeout))
         {
             organya_internal_sound_set_volume(
                 &context->percussion_index[i].sound,
@@ -2301,6 +2302,11 @@ ORG_API size_t organya_context_generate_samples(organya_context *context, void *
         /* Generate melody samples */
         for (i = 0; i < ORG_MELODY_CHANNEL_COUNT; ++i)
         {
+            if (!(context->compat_flags & ORG_COMPAT_LEGACY_PAUSING) && context->melody_index[i].muted)
+            {
+                continue;
+            }
+
             for (j = 0; j < 8; ++j)
             {
                 if (context->melody_index[i].sounds[j][0].playing || context->melody_index[i].sounds[j][0].silence_timer > 0)
@@ -2320,6 +2326,11 @@ ORG_API size_t organya_context_generate_samples(organya_context *context, void *
             if (context->compat_flags & ORG_COMPAT_CS_PERCUSSION && i >= 6)
             {
                 break;
+            }
+
+            if (!(context->compat_flags & ORG_COMPAT_LEGACY_PAUSING) && context->percussion_index[i].muted)
+            {
+                continue;
             }
 
             if (context->percussion_index[i].sound.playing || context->percussion_index[i].sound.silence_timer > 0)
